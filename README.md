@@ -9,6 +9,13 @@
 ## 文档
 
 - [设计方案](docs/DESIGN.md) —— 维度框架、技术选型、架构、真实性保障机制
+- [相似项目调研](docs/PRIOR-ART.md) —— 开工前的同类项目/工具调研与可用性验证结论
+
+## 开发前置规则
+
+**任何模块开工前，先查 GitHub 上有没有同类项目或可用工具，验证其可用性与可靠性（活跃度、核心假设是否仍成立、许可证），结论写入 [docs/PRIOR-ART.md](docs/PRIOR-ART.md)。**
+
+不因为 star 多就采用，也不因为小众就忽略 —— 看的是①能不能用、②还能不能用、③许可证允不允许。
 
 ## 目录结构
 
@@ -25,10 +32,13 @@
 | 层 | 选型 |
 |----|------|
 | 前端 | Vue 3 + TypeScript + Vite + Element Plus + ECharts |
-| 后端 | Spring Boot 3 + Java 17 + MyBatis-Plus |
+| 后端 | Spring Boot 3.2+ + Java 17/23 + MyBatis-Plus |
 | 存储 | MySQL 8.0 / Redis 7 |
 | 消息 | RabbitMQ 3.13 |
 | 采集 | Python + Scrapy + Playwright |
+
+> 本地实测环境：Java 23.0.1 / Maven 3.9.9 / Python 3.12.5 / Node 22.19.0。
+> **Java 23 要求 Spring Boot ≥ 3.2**（3.2 起才支持 Java 22/23），不要用 2.x。
 
 ## 环境
 
