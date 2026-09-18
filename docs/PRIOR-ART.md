@@ -270,7 +270,170 @@
 
 ---
 
-## 七、本文档的维护规则
+## 七、二轮调研：社媒采集 / 全网搜索 / 变更监听（2026-09-18）
+
+### 7.1 核实结果（含两处纠错）
+
+| 项目 | 来源声称 | 实测核实 | 档位 |
+|------|---------|---------|------|
+| [NanmiCoder/MediaCrawler](https://github.com/NanmiCoder/MediaCrawler) | 65k★，活跃 | **65,192★**，2023-06 创建，**今日仍在更新**，207 open issues | ✅ 实读（含 LICENSE） |
+| [Panniantong/Agent-Reach](https://github.com/Panniantong/Agent-Reach) | 83k★，Trending #1 | **82,959★**，2026-02 创建，今日更新，MIT | ✅ 实读（README 全文 + commit 历史） |
+| [SocialSisterYi/bilibili-API-collect](https://github.com/SocialSisterYi/bilibili-API-collect) | 20k★，已归档 | **20,216★**，**archived=true** ✅ 声称准确 | ✅ 实读 |
+| [pskdje/bilibili-API-collect](https://github.com/pskdje/bilibili-API-collect) | 「活跃复刻」 | **301★，archived=true —— 它也已归档** | ❌ **纠错 1** |
+| [Jesseovo/last30days-skill-cn](https://github.com/Jesseovo/last30days-skill-cn) | 1.8k★ | **1,799★**，2026-03 创建，今日更新，未归档 | ✅ 实读 |
+| [666ghj/MindSpider](https://github.com/666ghj/MindSpider) | 427★，已归档 | **427★**，**archived=true** ✅ 声称准确 | ✅ 实读 |
+
+**纠错 1 —— bilibili-API-collect 的「活跃复刻」也已归档。**
+真正活跃的继任者是 [**BACNext/BACNext**](https://github.com/BACNext/BACNext)（194★，Python，2026-09-12 更新，**未归档**）。另有 ILoveScratch2/bilibili-api-collect-new（64★）、z0z0r4/bilibili-API-collect（21★）也未归档，可作备选。
+
+**纠错 2 —— Agent-Reach 的 83k 星看着像刷的，但不是。**
+7 个月涨到 83k（超过 MediaCrawler 三年的 65k），且 README 措辞高度营销化，初判可疑。实读 commit 历史后**推翻怀疑**：Trendshift GitHub Trending #1 徽章真实；单个 PR 的提交信息包含根因分析、回归测试（108 passed / ruff / mypy 质量门）、CDP 协议细节修正 —— 这是真实工程量，不是刷量项目。**但必须记录：它是靠「Agent 能力层」定位 + 强营销跑出来的增速，不代表技术成熟度高于 MediaCrawler。**
+
+### 7.2 许可证约束（决定「能不能复用代码」）
+
+| 项目 | 许可证 | 能否复用代码 |
+|------|--------|------------|
+| MediaCrawler | **NON-COMMERCIAL LEARNING LICENSE 1.1** ⚠️ | **否**。条款明确：仅限非商业学习研究，且「不得用于大规模爬虫或对平台造成运营干扰」 |
+| Agent-Reach | MIT | 可以，但我们用不上其代码形态（见 8.3） |
+| last30days-skill-cn | 需单独确认 | —— |
+| BACNext | 需单独确认 | —— |
+| changedetection.io | 需单独确认（有 SaaS 商业版） | —— |
+
+> **MediaCrawler 与 BaiduIndexHunter 归为同一类**：能力真实、值得借鉴，但**代码不能拿来用**。
+> 本项目自身虽为自用，但「可能扩展到他人」是既定方向，一旦公开即触及非商业条款。**纪律：只借鉴接口实现思路，不复制代码。**
+
+### 7.3 形态判断：它们和我们的需求其实不同
+
+| 项目 | 它的形态 | 我们的需求 | 是否直接可用 |
+|------|---------|-----------|------------|
+| MediaCrawler | 交互式爬虫工具，人工选平台选关键词跑 | **定时、无人值守、按院校关键词批量**采集 | ❌ 形态不符，**但接口实现可借鉴** |
+| Agent-Reach | 给 agent 装「上网能力」，agent 在环内 | 指标要**自动入库**，人不在环内 | ❌ 形态不符 |
+| last30days-skill-cn | Claude Skill，交互式生成研究报告 | 同上 | ❌ 形态不符，**思路可借鉴** |
+| changedetection.io | 自建 Web 服务，监控页面变更 | **变更监听**（见 §7.5） | ✅ **形态吻合** |
+
+**Agent-Reach 真正值得我们抄的是它的「多后端路由 + doctor 自检」设计**：
+
+```
+channels/bilibili.py → bili-cli ▸ OpenCLI ▸ 搜索 API（yt-dlp 已被 B站风控封死，退役）
+agent-reach doctor → 一条命令告诉你每个渠道通不通、当前走哪条后端
+```
+
+这**恰好就是本项目「代理指标必须可插拔、可降级」要求的具体实现范式**（见 DESIGN.md §机制）。建议照此结构设计我们的热度信号采集器：每个平台一个 channel 文件，内部维护有序后端列表，自己能报健康状态。
+
+**另一个重要情报**：Agent-Reach 记录 **yt-dlp 于 2026-06 被 B 站风控 412 封死**，已切换到 `bili-cli`（无需登录可搜可读）。这解释了为什么直接拿 yt-dlp 抓 B 站会失败 —— 省掉一次踩坑。
+
+### 7.4 全网搜索：SearXNG + 已有代理
+
+**决定：用 SearXNG 自建全网搜索。** 34k★ 级同类方案 [changedetection.io](https://github.com/dgtlmoon/changedetection.io) 另见 §7.5。
+
+**基础设施现状（已实测）**：Kali VM 上已常驻 **mihomo（Clash Meta）**：
+
+```
+/usr/local/bin/mihomo -d /etc/mihomo   ← systemd enabled + active
+mixed-port: 7890    allow-lan: false    bind-address: '*'    mode: rule
+实测：google 200 / 4.58s    bing 200 / 1.61s    直连 baidu 200 / 0.37s
+```
+
+⚠️ **待解决的部署问题**：`allow-lan: false` 且只监听 `127.0.0.1` → **Docker 容器默认够不着这个代理**。SearXNG 若要抓 Google，必须先解决容器出网，备选方案：
+
+| 方案 | 做法 | 代价 |
+|------|------|------|
+| A. 开放 mihomo 到 Docker 网段 | `allow-lan: true` + `bind-address` 限到 `172.23.0.0/16` | 需确认 mihomo 版本支持 lan-allowed-ips；改动 VM 上他人已在用的代理配置 ⚠️ |
+| B. SearXNG 用 host 网络 | `network_mode: host` | 破坏 gradheat 端口隔离约定 |
+| C. 加 `host-gateway` | `--add-host=host.docker.internal:host-gateway` + 方案 A | 同上需改 mihomo |
+
+**注意合规边界**：SearXNG 只应聚合**允许抓取的引擎**。Google/Bing 经代理抓取属个人自用研究范畴，但需严格限速，不做大规模抓取。
+
+**SearXNG 已知坑（来自调研，待实测）**：`settings.yml` 必须加 `formats: [html, json]` 否则 JSON API 返回 403；需关闭 limiter。
+
+### 7.5 变更监听（`监听` 需求的正确形态）
+
+用户提出「监听报名按钮 / 考研信息网页」的需求。**结论：流量监听不可行，变更监听可行且价值更高**（完整论证见 DESIGN.md §新增维度）。工程载体：
+
+| 方案 | 说明 | 档位 |
+|------|------|------|
+| [changedetection.io](https://github.com/dgtlmoon/changedetection.io) | 34,319★，Python，2021 起持续维护，今日仍更新，自建 Web 服务，支持 CSS 选择器定位 + 通知 | ⚠️ 表层验证（未部署实测） |
+| 自建 | httpx + 内容 hash + diff，轻量可控，与我们管道天然集成 | —— |
+
+**初判：倾向自建**。理由：我们的场景需要「变更 → 触发数据管道入库」，而不是「变更 → 给人发通知」；changedetection.io 是给人用的监控台，与我们的自动化管道集成反而绕远。但若只做「招简发布提醒」这类运营功能，它开箱即用更省事。
+
+---
+
+## 八、Issue / PR 挖掘：真实世界的失效模式（2026-09-18）
+
+> **为什么必须看 issue**：README 展示的是项目想让你看到的样子，**issue 才是它真实运行的记录**。
+> 本次逐个读了 MediaCrawler（163 open）与 Agent-Reach（83 open）的近期 issue，挖到 10 类失效模式。
+> **这些对我方的价值高于项目本身** —— 因为它们全部是我们采集管道未来必然会遇到的。
+
+### 8.1 最高价值的一条：「抓到 0 条」被当成数据
+
+**实例**：[last30days-skill-cn #11](https://github.com/Jesseovo/last30days-skill-cn/issues/11)（2026-07-18，仍 open）
+
+小红书 `/api/sns/web/v1/search/notes` 接口废弃，新版页面改请求 `search/recommend`。
+但该接口返回的是**搜索框下拉联想词（`sug_items`）**，payload 里**完全没有 `items`/`note_card`**：
+
+```
+[爬虫-小红书] 未捕获搜索 XHR，可能需要重新登录...
+[xiaohongshu] 0 条结果        ← 爬虫"成功"结束，但一条没抓到
+```
+
+同一问题在 [#8](https://github.com/Jesseovo/last30days-skill-cn/issues/8) 被重复报告。
+
+> **⚠️ 这个 bug 是本项目最危险的失效模式。**
+> 如果我们的采集管道把「0 条」当作合法结果入库，前端就会显示
+> **「某校 2026-03 小红书讨论量 = 0」** —— 看起来是**该校突然降温**，
+> 实际上是**爬虫坏了**。这是「假的降温信号」，比没有数据危险得多。
+
+**→ 落地为硬性规则**：
+
+| 规则 | 说明 |
+|------|------|
+| **采集返回空/异常低值 → 告警 + 标记 `missing`，绝不入库为 0** | 与 DESIGN.md「缺失留空不填 0」同源，但这里有了真实世界的反面案例 |
+| **解析结果条数必须与历史基线比对** | 如"上月抓到 200 条，本月 3 条" → 触发异常告警而非静默入库 |
+| **每次采集必须记录 `fetched_count` 元数据** | 让「抓到多少」成为可审计的一等公民 |
+
+### 8.2 十类失效模式汇总
+
+| # | 失效模式 | 真实实例 | 我方对策 |
+|---|---------|---------|---------|
+| 1 | **空结果被当数据** | last30days #11/#8 | 见 8.1，入库前做条数合理性校验 |
+| 2 | **自检假阳性**：健康检查说 OK 但实际不可用 | Agent-Reach #685（doctor 报 web channel ok，实际 Jina Reader 不可达）、#642（pin 的依赖被 WAF 403，doctor 覆盖不到） | 健康检查必须**发真实请求并校验响应内容**，不是只看 HTTP 200；检查要覆盖到依赖层 |
+| 3 | **过期凭据静默屏蔽兜底**：既不用 A 也不走 B，静默失败 | Agent-Reach #664（过期 cookie 静默屏蔽了 fallback 路径） | 凭据失效必须**显式报错并触发降级**，禁止静默 |
+| 4 | **配置写入成功但未生效** | Agent-Reach #702（cookie 写入后未被流程使用，提示与行为不一致） | 配置写入后必须**验证生效**再报成功 |
+| 5 | **平台改版导致解析器失效** | MediaCrawler #871（百度贴吧网页版改版，HTML 解析全挂） | 解析器要能报「异常少量结果」；**改版即告警**（变更监听的价值之一） |
+| 6 | **平台接口废弃** | last30days #11、MediaCrawler #914（微博 detail 失效）/#954（快手下载失效） | 多后端路由 + 每个后端独立健康探测 |
+| 7 | **去重/截断污染指标** | MediaCrawler #907（微博关键词搜索**只返回去重后**的结果，拿不到全部） | 讨论量**只能同平台同口径比趋势**，不可横比；元数据记录口径 |
+| 8 | **封号是真实发生的** | MediaCrawler #915（只是查看帖子+下载视频，被小红书提示"检测到 AI 操作"，9 条讨论） | 只采集公开聚合计数；用小号；严格限速；不做内容大规模抓取 |
+| 9 | **供应链/归属风险** | Agent-Reach #658（doctor 引导用户装**非官方的** Chrome 扩展） | 不引导安装来源不明的扩展/二进制 |
+| 10 | **环境硬约束未预先声明** | last30days #13（Playwright 浏览器二进制要求 macOS 13.5+） | Phase 0 先实测 Kali 上 Playwright 的浏览器依赖 |
+
+### 8.3 从 issue 里捡到的两条直接可用的情报
+
+**① Exa 可直连 REST，不必走 MCP**
+[Agent-Reach #646](https://github.com/Panniantong/Agent-Reach/issues/646)：有 API Key 时直连 Exa REST，保留 MCP 回退。
+→ **我方已配置 Exa API Key**（在 `.claude/settings.local.json`）。**采集脚本应直连 REST**；MCP 是给交互式 agent 用的，不适合无人值守的定时管道。
+
+**② 「采集前预检」是共性刚需**
+[MediaCrawler #960](https://github.com/NanmiCoder/MediaCrawler/issues/960)：用户主动提 issue 要求「Add a lightweight preflight check for cookies/proxy before starting a crawl」。
+→ 与 Agent-Reach 的 `doctor` 设计殊途同归。**两个独立项目都演化出同一个需求，说明这是刚需，不是过度设计。**
+→ 我方采集器开工前必须自检：代理通不通、目标站点是否仍可达、解析器是否还能解析出合理条数。
+
+### 8.4 结论：`doctor` 设计要抄，但必须修掉它的 bug
+
+Agent-Reach 的「多后端路由 + doctor 自检」范式值得照搬，**但它的 issue 说明这个范式有两个必须避开的坑**：
+
+```
+❌ 它的问题：doctor 只检查"命令存不存在" → 假阳性（#685）
+             检查不到依赖层的失效（#642）
+
+✅ 我方的做法：每个 channel 健康检查 = 发一次真实请求 + 校验响应结构符合预期
+             检查结果分三态：healthy / degraded(走了备选后端) / down
+             down 时管道降级运行并显式标注该维度数据缺失，绝不静默
+```
+
+---
+
+## 九、本文档的维护规则
 
 - **新模块开工前**：先在本文件追加一节，写明「调研了什么 → 验证结论 → 采用/借鉴/弃用 + 理由」，然后再写代码
 - **验证结论要标明档位**（✅实读 / ⚠️表层 / ❌未验证），不要用「看起来不错」代替结论
