@@ -42,15 +42,43 @@
 
 ## 环境
 
-基础设施部署在 Kali VM（`192.168.43.150`）的 Docker 内，详见 [infra/docker/README.md](infra/docker/README.md)。
+基础设施部署在 Kali VM（`192.168.43.150`）。**存储/中间件跑 Docker，需要出网的采集/搜索服务跑宿主机** —— 容器不配代理（它们都是内网服务），出网任务直接用宿主机已有的 mihomo（`127.0.0.1:7890`）。
 
 ```bash
-# 启动基础设施
+# 启动基础设施（Docker：MySQL / Redis / RabbitMQ）
 ssh ms@192.168.43.150 "cd /opt/gradheat/infra/docker && docker compose up -d"
 
 # 本地开发隧道
-ssh -N -L 13306:127.0.0.1:3306 -L 16379:127.0.0.1:6379 -L 15673:127.0.0.1:15672 ms@192.168.43.150
+ssh -N -L 13306:127.0.0.1:3306 -L 16379:127.0.0.1:6379 -L 15673:127.0.0.1:15672 -L 18890:127.0.0.1:8890 ms@192.168.43.150
 ```
+
+详见 [infra/docker/README.md](infra/docker/README.md)。
+
+### SearXNG（全网搜索）
+
+自建元搜索，跑在 Kali 宿主机上（`systemd` 服务 `searxng`，监听 `127.0.0.1:8890`），出网经 mihomo —— mihomo 是 `mode: rule`，**国内域名直连、境外走隧道**，已实测（百度 0.25s、清华 0.85s、Google 约 3.4s）。
+
+```bash
+# JSON API（开发用；HTML 前端可用上面的隧道 18890 打开）
+curl -G 'http://127.0.0.1:8890/search' \
+  --data-urlencode 'q=西安电子科技大学 计算机 拟录取名单' \
+  --data-urlencode 'format=json'
+```
+
+配置：`/opt/gradheat/searxng-config/settings.yml` ｜ 服务：`/etc/systemd/system/searxng.service`
+
+**引擎实测状态（2026-09-18）**：
+
+| 引擎 | 状态 | 说明 |
+|------|------|------|
+| `google cse` | ✅ 稳定 | 走官方 API，不受 IP 风控影响，是主力 |
+| `brave` | ✅ 可用 | 直接抓取 |
+| `bing` | ✅ 可用 | 直接抓取（需显式指定 `engines=bing`） |
+| `google` | ❌ CAPTCHA | 代理 IP 被 Google 标记 |
+| `duckduckgo` | ❌ CAPTCHA | 同上 |
+| `baidu` | ❌ 302 验证 | 需真实浏览器种下的 BAIDUID cookie，与代理无关（直连同样被挡） |
+
+> ⚠️ **配置这两个坑必须避开**（已处理）：`search.formats` 不加 `json` 会让 JSON API 返回 **403**；`limiter` 必须关闭。
 
 ## 状态
 

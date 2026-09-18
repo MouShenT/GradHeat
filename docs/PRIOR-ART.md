@@ -326,32 +326,63 @@ agent-reach doctor → 一条命令告诉你每个渠道通不通、当前走哪
 
 **决定：用 SearXNG 自建全网搜索。** 34k★ 级同类方案 [changedetection.io](https://github.com/dgtlmoon/changedetection.io) 另见 §7.5。
 
-**基础设施现状（已实测）**：Kali VM 上已常驻 **mihomo（Clash Meta）**：
+#### ✅ 已部署（2026-09-18 实测完成）
 
-```
-/usr/local/bin/mihomo -d /etc/mihomo   ← systemd enabled + active
-mixed-port: 7890    allow-lan: false    bind-address: '*'    mode: rule
-实测：google 200 / 4.58s    bing 200 / 1.61s    直连 baidu 200 / 0.37s
-```
+| 项 | 值 |
+|----|-----|
+| 位置 | Kali 宿主机 `/opt/gradheat/searxng`（**非 Docker**，见下方出网决策） |
+| 服务 | `systemd` 单元 `searxng`，enabled + active |
+| 监听 | `127.0.0.1:8890`（避开被其他项目占用的 8888） |
+| 配置 | `/opt/gradheat/searxng-config/settings.yml` |
+| 版本要求 | `setup.py` 声明 `python_requires>=3.10`；VM 实测 **Python 3.13.11**，满足 |
 
-⚠️ **已解决（2026-09-18 用户决策）**：`allow-lan: false` 且只听 `127.0.0.1` 的问题**不需要解决** —— 因为**Docker 容器根本不需要代理**。
+**引擎实测结果**：
 
-**决策：容器只跑存储/中间件（MySQL / Redis / RabbitMQ），全是内网服务，不配代理。需要出网的采集任务直接跑在 Kali 宿主机上**，与 mihomo 同网络命名空间，`127.0.0.1:7890` 天然可达。
+| 引擎 | 状态 | 说明 |
+|------|------|------|
+| `google cse` | ✅ 稳定（20 条/次） | 走官方 API，**不受代理 IP 风控影响 —— 主力** |
+| `brave` | ✅ 可用（16~20 条/次） | 直接抓取 |
+| `bing` | ✅ 可用（10 条） | 需显式 `engines=bing` 才进默认结果 |
+| `google`（正牌） | ❌ `CAPTCHA` | 代理出口是数据中心 IP，被 Google 标记 |
+| `duckduckgo` | ❌ `CAPTCHA` | 同上 |
+| `baidu` | ❌ 302 → 验证页 | **与代理无关**：直连同样被挡（302，302→验证），需真实浏览器种下的 BAIDUID cookie |
+
+**验收证据（真实返回）**：查询「西安电子科技大学 计算机 拟录取名单」→ **40 条结果**，直接命中
+`scse.uestc.edu.cn/info/1015/16958.htm`「2025年计算机（网安）学院硕士研究生招生拟录取名单」、西电研究生院、电子科大研招网。
+**检索能力可直接触达本项目核心数据源，已验证。**
+
+**踩过的坑（供复用）**：
+
+| 坑 | 现象 | 解法 |
+|----|------|------|
+| `search.formats` 默认只有 `html` | JSON API 返回 **403** | 加 `- json`（调研时预判，实测证实） |
+| `searx` 包不在 venv 里 | `ModuleNotFoundError: No module named 'searx'` | 设 `PYTHONPATH=/opt/gradheat/searxng`（`pip install -e .` 因构建隔离缺 msgspec 而失败，不需要） |
+| limiter 缺失告警 | `missing config file: limiter.toml` | 从 `searx/limiter.toml` 复制一份（limiter 仍为 false） |
+| `duckduckgo`/`google` 不可用是**预期内** | 数据中心 IP 的必然待遇 | 用 `google cse` 替代 |
+
+#### 出网决策：容器不走代理，出网任务跑宿主机
+
+**用户决策（2026-09-18）**：`allow-lan: false` 且只听 `127.0.0.1` 的问题**不需要解决** —— 因为 **Docker 容器根本不需要代理**（只跑 MySQL/Redis/RabbitMQ 等内网服务）。需要出网的服务直接跑 Kali 宿主机，与 mihomo 同网络命名空间，`127.0.0.1:7890` 天然可达。
 
 | 原方案 | 结论 |
 |--------|------|
 | ~~A. 开放 mihomo 到 Docker 网段~~ | ❌ 废弃 —— 不需要改 mihomo，不碰 VM 上其他项目在用的配置 |
 | ~~B. `network_mode: host`~~ | ❌ 废弃 —— 不需要破坏容器端口隔离约定 |
 | ~~C. `--add-host=host-gateway`~~ | ❌ 废弃 —— 同 A，多此一举 |
-| **D. 出网任务跑宿主机** ✅ | **采纳**。零配置改动，风险最小 |
+| **D. 出网任务跑宿主机** ✅ | **已实施**。零配置改动，风险最小 |
 
-⚠️ **但代理边界必须显式控制**：宿主机 shell 已设 `HTTP_PROXY/HTTPS_PROXY=http://127.0.0.1:7890`，而 `NO_PROXY=localhost,127.0.0.1,::1,192.168.0.0/16,10.0.0.0/8,172.16.0.0/12,.local` —— **不含 `.cn` / `.edu.cn`**。所以抓国内院校官网时不能无脑继承环境变量（否则绕道境外，慢且易失败）。做法：**国内直连、境外走代理，显式设置而非依赖环境变量**，并在启动时验证出口 IP。
+**⚠️ 原「未验证假设」现已实测证实成立**：mihomo 是 `mode: rule`，实测**国内域名确实被直连**：
 
-> 补充：mihomo 是 `mode: rule`，理论上国内域名会命中 DIRECT 规则直连。但**这取决于订阅规则集是否覆盖 `.edu.cn`** —— 属未验证假设，**不要依赖它**，仍应显式控制。
+```
+经代理：百度 0.247s | 知乎 0.369s | B站 0.299s | tsinghua.edu.cn 0.846s | Google 1.58s(经隧道)
+真直连：百度 0.493s | Google 15s 超时(不可达) | 出口 IP 经代理为 85.237.206.10
+```
+
+**`.edu.cn` 确实被规则集覆盖为直连** —— 这原本是我方标注的未验证假设，现已证实。因此**给 SearXNG 设全局代理是安全的**，路由交给 mihomo 规则引擎。
+
+但仍**不依赖**该结论：规则集由订阅方维护、可能变动，故按机制 9 ⑪⑫ 显式控制代理并在启动时验证出口 IP。
 
 **注意合规边界**：SearXNG 只应聚合**允许抓取的引擎**。Google/Bing 经代理抓取属个人自用研究范畴，但需严格限速，不做大规模抓取。
-
-**SearXNG 已知坑（来自调研，待实测）**：`settings.yml` 必须加 `formats: [html, json]` 否则 JSON API 返回 403；需关闭 limiter。
 
 ### 7.5 变更监听（`监听` 需求的正确形态）
 
