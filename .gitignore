@@ -1,0 +1,45 @@
+# ---- MCP / Claude 本地配置（含密钥，不提交） ----
+.mcp.json
+.claude/settings.local.json
+
+# ---- 临时文件 ----
+.tmp-*
+*.tmp
+
+# ---- Java ----
+target/
+*.class
+*.jar
+!.mvn/wrapper/maven-wrapper.jar
+.mvn/timing.properties
+
+# ---- Python ----
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+*.egg-info/
+scrapy.cfg.bak
+
+# ---- Node / 前端 ----
+node_modules/
+dist/
+dist-ssr/
+*.local
+.vite/
+.env.local
+.env.*.local
+
+# ---- IDE / 编辑器 ----
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# ---- 系统 ----
+.DS_Store
+Thumbs.db
+desktop.ini

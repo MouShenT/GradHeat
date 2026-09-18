@@ -1,0 +1,106 @@
+# ==========================================================
+# GradHeat 基础设施 — MySQL + Redis + RabbitMQ
+# ==========================================================
+# 独立于 VM 上已有的 xhs-* / arl-* / nemo3_* 容器，
+# 容器名统一 gradheat-* 前缀，网络独立 gradheat-net。
+#
+# 启动:  docker compose up -d
+# 停止:  docker compose down
+# 状态:  docker compose ps
+# 日志:  docker compose logs -f mysql
+# ==========================================================
+
+name: gradheat
+
+networks:
+  gradheat-net:
+    name: gradheat-net
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.23.0.0/16
+
+volumes:
+  gradheat-mysql-data:
+  gradheat-redis-data:
+  gradheat-rabbitmq-data:
+
+services:
+  mysql:
+    image: mysql:${MYSQL_VERSION}
+    container_name: gradheat-mysql
+    restart: unless-stopped
+    hostname: mysql
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+      - --default-authentication-plugin=mysql_native_password
+      - --max_connections=200
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${MYSQL_DATABASE}
+      MYSQL_USER: ${MYSQL_USER}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+      TZ: Asia/Shanghai
+    volumes:
+      - gradheat-mysql-data:/var/lib/mysql
+    networks:
+      - gradheat-net
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-uroot", "-p${MYSQL_ROOT_PASSWORD}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 40s
+
+  redis:
+    image: redis:${REDIS_VERSION}
+    container_name: gradheat-redis
+    restart: unless-stopped
+    hostname: redis
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
+      TZ: Asia/Shanghai
+    command:
+      - redis-server
+      - --requirepass
+      - ${REDIS_PASSWORD}
+      - --appendonly
+      - "yes"
+      - --appendfsync
+      - everysec
+      - --maxmemory
+      - 512mb
+      - --maxmemory-policy
+      - allkeys-lru
+    volumes:
+      - gradheat-redis-data:/data
+    networks:
+      - gradheat-net
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli -a $${REDIS_PASSWORD} ping | grep -q PONG"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  rabbitmq:
+    image: rabbitmq:${RABBITMQ_VERSION}
+    container_name: gradheat-rabbitmq
+    restart: unless-stopped
+    hostname: rabbitmq
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD}
+      RABBITMQ_DEFAULT_VHOST: /gradheat
+      TZ: Asia/Shanghai
+    volumes:
+      - gradheat-rabbitmq-data:/var/lib/rabbitmq
+    networks:
+      - gradheat-net
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
