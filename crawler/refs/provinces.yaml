@@ -1,0 +1,37 @@
+# 省市代码（研招网 ssdm）→ 名称 + 大区
+#
+# 研招网返回的 area 是自由文本且混有图标字形，ssdm 才是可用的规范化键。
+# 大区用于热度评估时的地域聚合（如「华东地区 408 竞争度」）。
+
+provinces:
+  "11": { name: 北京, region: 华北 }
+  "12": { name: 天津, region: 华北 }
+  "13": { name: 河北, region: 华北 }
+  "14": { name: 山西, region: 华北 }
+  "15": { name: 内蒙古, region: 华北 }
+  "21": { name: 辽宁, region: 东北 }
+  "22": { name: 吉林, region: 东北 }
+  "23": { name: 黑龙江, region: 东北 }
+  "31": { name: 上海, region: 华东 }
+  "32": { name: 江苏, region: 华东 }
+  "33": { name: 浙江, region: 华东 }
+  "34": { name: 安徽, region: 华东 }
+  "35": { name: 福建, region: 华东 }
+  "36": { name: 江西, region: 华东 }
+  "37": { name: 山东, region: 华东 }
+  "41": { name: 河南, region: 华中 }
+  "42": { name: 湖北, region: 华中 }
+  "43": { name: 湖南, region: 华中 }
+  "44": { name: 广东, region: 华南 }
+  "45": { name: 广西, region: 华南 }
+  "46": { name: 海南, region: 华南 }
+  "50": { name: 重庆, region: 西南 }
+  "51": { name: 四川, region: 西南 }
+  "52": { name: 贵州, region: 西南 }
+  "53": { name: 云南, region: 西南 }
+  "54": { name: 西藏, region: 西南 }
+  "61": { name: 陕西, region: 西北 }
+  "62": { name: 甘肃, region: 西北 }
+  "63": { name: 青海, region: 西北 }
+  "64": { name: 宁夏, region: 西北 }
+  "65": { name: 新疆, region: 西北 }

@@ -1,6 +1,12 @@
 # ---- MCP / Claude 本地配置（含密钥，不提交） ----
 .mcp.json
+.research/
+.firecrawl/
 .claude/settings.local.json
+
+# ---- 凭据（含数据库密码，不提交）----
+.env
+!.env.example
 
 # ---- 临时文件 ----
 .tmp-*
