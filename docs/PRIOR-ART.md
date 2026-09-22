@@ -1,5 +1,47 @@
 # 相似项目与工具调研（Prior Art）
 
+## 2026-09-23：学习研究用社交采集项目
+
+通过 Exa 发现、Firecrawl 开发者索引和 GitHub 原仓库交叉核对 MediaCrawler、ReaJason/xhs、Johnserf-Seed/f2、Nemo2011/bilibili-api。读取许可证与 README、检索实际函数和问题记录后，确定 MediaCrawler 首轮试点，xhs/F2 专项对照，排除已归档且声明关停的 bilibili-api。用户明确非商业学习研究用途，MediaCrawler 不因其学习许可而被排除。尚未进行登录或运行验证，不声称候选已稳定；详见 [完整选型与验收](SOCIAL-COLLECTOR-SELECTION.md)。
+
+## 2026-09-23：采集方案评审
+
+用户要求优先验证架构与信息方案，暂缓编码。Exa 查找官方招生案例，Firecrawl 实时采集华中师大与湖大计算机学院页面，GitHub 核查官方仓库。详细证据和选择见 [本轮评审](ARCHITECTURE-REVIEW-2026-09-23.md)。
+
+- [Scrapy](https://github.com/scrapy/scrapy)：仓库非 archived；读取 LICENSE，BSD 三条款。AutoThrottle 与 JOBDIR 官方文档已核验，JOBDIR 不保证非正常退出恢复；不以一个未关闭 issue 推定已实现能力。
+- [pdfplumber](https://github.com/jsvine/pdfplumber)：仓库非 archived；读取 README，明确更适合机器生成 PDF。根路径 LICENSE 请求返回 404，进一步代码搜索 setup.py 得到 MIT 声明；实际采用版本还需核对随包许可证。此次未安装。
+- [Playwright BrowserContext](https://playwright.dev/docs/api/class-browsercontext)：官方文档命中上下文请求路由能力，保留为按需路径，未做校园动态页性能测试。
+- 本次网页证明合并表头、图片内容与 download.jsp 附件是实际存在的采集难点；搜索/Markdown 返回成功不等于关键字段完整。
+
+维护性核验只确认官方仓库可访问、非归档和文档能力，未审计所有发布与安全问题；不以星标或此检查替代版本锁定与本地基准。
+
+## 2026-09-22：架构与流程修订前核验
+
+- [OpenLineage 官方规范与实现](https://github.com/OpenLineage/OpenLineage/blob/main/spec/OpenLineage.md)：借鉴 job、run、dataset 的分离及输入输出血缘；当前规模只落实本地契约，不部署额外血缘服务，不宣称兼容其完整事件协议。
+- [RabbitMQ 官方可靠性指南](https://www.rabbitmq.com/docs/reliability)及[确认机制](https://www.rabbitmq.com/docs/confirms)：生产确认与消费确认职责不同，恢复重发可能造成重复。规划采用事务 outbox、消费幂等键、提交后 ACK，不宣称 exactly-once。
+- [JSON Schema 2020-12](https://json-schema.org/draft/2020-12)：用已有 Python jsonschema 校验发布清单结构；跨字段时间、证据集合及发布能力另做语义校验。
+
+本轮不引入新调度平台或微服务框架；先统一现有 Python 采集脚本的数据边界和发布门槛，再按规模启用现有 RabbitMQ。规范参考不等于已实现生产调度。
+
+插件补充核验：Exa 与 Firecrawl 找到 [jsonschema 官方格式说明](https://python-jsonschema.readthedocs.io/en/stable/validate/)，GitHub 插件定位到 [官方实现 `_format.py`](https://github.com/python-jsonschema/jsonschema/blob/15f8613be518d9e5f563efa643213d1962d3c5b7/jsonschema/_format.py)。date-time 校验依赖可选组件，缺失时可能不执行。本地失败用例与此一致，发布契约因此注册显式时间检查，不依赖可选安装状态。Scite 的经典文献全文与图谱覆盖限制继续遵循既有核验记录，本次未将模型假设升级为已证实结论。
+
+## 2026-09-22：本地研究工具接入前核验
+
+用户要求配置供本地 Codex 使用的搜索技能/MCP，并完善已授权虚拟机。官方文档与仓库已读取：
+
+- Exa 官方 MCP：https://github.com/exa-labs/exa-mcp-server ，MIT；官方托管 https://mcp.exa.ai/mcp ，支持 Bearer API key。用于通用检索和原文发现，搜索排序不代表证据可信度。
+- Firecrawl 官方 MCP：https://github.com/firecrawl/firecrawl-mcp-server ，MIT；官方托管 https://mcp.firecrawl.dev/v2/mcp ，支持 Bearer API key；专门的 /v2/mcp-search 暴露论文检索。采用官方托管接口，避免不明第三方代理。
+- Firecrawl CLI：https://github.com/firecrawl/cli ，npm 官方元数据确认 firecrawl-cli@1.19.6 的仓库与 SHA-512 完整性。已有技能但 CLI 缺失，补装固定版本；CLI 许可证以包内 LICENSE 为准，不与 MCP 仓库许可证混同。
+- SearXNG：https://github.com/searxng/searxng ，沿用已部署服务，不复制其代码。2026-09-22 SSH 实测服务 active，监听 127.0.0.1:8890；搜索质量待实际查询确认。
+- Crossref 官方 REST：https://www.crossref.org/documentation/retrieve-metadata/rest-api/ ，用来核对 DOI 与书目信息；元数据命中不等于读过全文或证明主张。
+- Codex 官方配置：https://learn.chatgpt.com/docs/extend/mcp ，使用用户级 config.toml，保留原有 node_repl。项目 .mcp.json 不是当前 Codex 的既有接入配置。
+
+采用最小组合：Exa、Firecrawl、现有 SearXNG，加领域研究技能及证据记录。Scite 仅作为待用户连接的引用语境增强项。实际状态与失败结果写入 docs/SEARCH-SETUP.md，不把文档验证当作运行验证。
+
+运行后补记：CLI 安装包声明 ISC 许可证，1.19.6 无 research 子命令；学术检索使用完整 Firecrawl MCP 的 research 工具。专门的 mcp-search 端点认证失败，未启用。Exa 旧密钥无效，官方匿名查询成功。SearXNG 的 Google CSE、Bing 实测返回结果，Brave 限流，默认查询排除 Brave。
+
+后续补记：用户已安装 Scite，当前会话按 DOI 查询及引用图谱实测成功；经典文献全文不可用、图谱未返回引用原文，具体边界见 SEARCH-SETUP.md 的 Scite 验收记录。
+
 > 调研日期：2026-09-18
 > 调研人：Claude Code
 > **本文档是项目开发的前置步骤产物** —— 规则：任何模块开工前，先查有没有可复用/可借鉴的现成方案，并验证其可用性与可靠性，结论记录于此。

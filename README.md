@@ -2,13 +2,21 @@
 
 > 11408 考研院校专业热度评估与择校分析平台
 
-多维度评估 11408（政治 + 英一 + 数一 + 408）相关考研院校/专业的热度，以网站形式呈现。
+围绕 11408（政治 + 英一 + 数一 + 408）择校，建立原始证据、竞争池事实、历史描述、个人适配与情景比较的可追溯流程。网站与 API 尚待实现。
 
-**核心原则：承认数据缺失，用可量化的方式表达可信度，而不是假装数据完整。**
+**核心原则：证据质量、数据完整度与预测不确定性分别表达；未验证的概率不发布。**
 
 ## 文档
 
-- [设计方案](docs/DESIGN.md) —— 维度框架、技术选型、架构、真实性保障机制
+- [社交平台采集项目选型](docs/SOCIAL-COLLECTOR-SELECTION.md) —— MediaCrawler 首轮试点、专项备用与可靠性验收
+- [多平台热度方案](docs/HEAT-SIGNALS.md) —— 小红书、抖音、B站、知乎的获取边界、指标和采样偏差
+- [架构、择校与爬虫方案评审（9 月 23 日）](docs/ARCHITECTURE-REVIEW-2026-09-23.md) —— 选型结论、真实官网样本、可靠性与效率验收
+- [本地搜索工具配置](docs/SEARCH-SETUP.md) —— MCP、研究技能、虚拟机后备检索及实测状态
+- [研究证据规范](docs/RESEARCH-EVIDENCE-POLICY.md) —— 来源追溯、量化验证与博弈论适用条件
+- [择校决策审查](docs/DECISION-REVIEW.md) —— 从信息获取到决策的改进建议
+- [当前架构 v0.2](docs/DESIGN.md) —— 模块边界、竞争池、版本化事实与发布能力
+- [执行流程](docs/WORKFLOW.md) —— 状态机、实施工作包、验收与恢复
+- [发布数据契约](contracts/README.md) —— 可运行的清单检查及适用限制
 - [相似项目调研](docs/PRIOR-ART.md) —— 开工前的同类项目/工具调研与可用性验证结论
 
 ## 开发前置规则
@@ -20,22 +28,33 @@
 ## 目录结构
 
 ```
-├── backend/          Spring Boot 服务（Java 17）
-├── crawler/          Python 爬虫（Scrapy + Playwright）
-├── web/              前端（Vue 3 + TypeScript + ECharts）
-├── infra/docker/     基础设施（MySQL / Redis / RabbitMQ）
-└── docs/             设计文档
+├── crawler/          Python 采集与导入（requests + lxml）
+├── contracts/        发布清单 schema 与合成样例
+├── tools/research/   本地研究工具
+├── tools/architecture/ 发布清单校验器与测试
+├── infra/docker/     MySQL / Redis / RabbitMQ 配置
+├── infra/search/     虚拟机后备搜索与证据留存
+└── docs/             当前架构、执行流程、研究规范与历史归档
 ```
 
 ## 技术栈
 
 | 层 | 选型 |
 |----|------|
-| 前端 | Vue 3 + TypeScript + Vite + Element Plus + ECharts |
-| 后端 | Spring Boot 3.2+ + Java 17/23 + MyBatis-Plus |
+| 前端（规划） | Vue 3 + TypeScript；按比较流程建设 |
+| 后端（规划） | Spring Boot 模块化单体；具体依赖在实施时核验 |
 | 存储 | MySQL 8.0 / Redis 7 |
 | 消息 | RabbitMQ 3.13 |
-| 采集 | Python + Scrapy + Playwright |
+| 采集 | Python + requests + lxml；动态页面按需引入浏览器 |
+
+## 架构契约验证
+
+```powershell
+python -B tools/architecture/validate_release.py contracts/examples/descriptive.json
+python -B -m unittest discover -s tools/architecture -p 'test_*.py'
+```
+
+此校验只检查发布声明的一致性，不代替证据审核或正式模型验证。下一实施顺序为采集失败修复 → 证据与事实版本 → 1 池完整报告 → 多池情景比较 → 页面与模型准入，详见执行流程。
 
 > 本地实测环境：Java 23.0.1 / Maven 3.9.9 / Python 3.12.5 / Node 22.19.0。
 > **Java 23 要求 Spring Boot ≥ 3.2**（3.2 起才支持 Java 22/23），不要用 2.x。
