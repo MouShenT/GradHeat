@@ -52,7 +52,10 @@ class Session:
         if wait > 0:
             time.sleep(wait)
 
-    def get(self, url: str, *, referer: str | None = None, **kw) -> requests.Response:
+    def get(
+        self, url: str, *, referer: str | None = None, raise_status: bool = True, **kw
+    ) -> requests.Response:
+        """raise_status=False 用于探测场景：4xx/5xx 直接返回响应保留状态码，不进重试。"""
         headers = {"User-Agent": random.choice(UA_POOL), "Accept-Language": "zh-CN,zh;q=0.9"}
         if referer:
             headers["Referer"] = referer
@@ -64,7 +67,8 @@ class Session:
             try:
                 resp = self._sess.get(url, headers=headers, timeout=self.timeout, **kw)
                 self._last_request_at = time.monotonic()
-                resp.raise_for_status()
+                if raise_status:
+                    resp.raise_for_status()
                 resp.encoding = resp.apparent_encoding or "utf-8"
                 return resp
             except Exception as exc:  # noqa: BLE001 - 统一重试

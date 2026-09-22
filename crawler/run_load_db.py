@@ -132,39 +132,42 @@ def build_probe_rows(conn, ref: dict) -> list[dict]:
         if not sid:
             continue
         best_url = r.get("portal_url")
-        tried = r.get("portal_candidates_tried") or r.get("tried") or []
+        tried = (
+            r.get("portal_tried") or r.get("portal_candidates_tried") or r.get("tried") or []
+        )
+        # 探测时间用探测批次自己的 probed_at，缺字段才退回清单时间（旧格式兼容）
+        row_at = (r.get("probed_at") or fetched_at).replace("T", " ")[:19]
 
         out += [
             {
                 "school_id": sid,
-                "fetched_at": fetched_at,
+                "fetched_at": (t.get("probed_at") or row_at).replace("T", " ")[:19],
                 "url": t["url"],
                 "dns_ok": 1,
                 "http_status": t.get("status"),
                 "score": t.get("score"),
                 "is_best": int(t["url"] == best_url),
-                "error": t.get("err"),
+                "error": t.get("err") or ("; ".join(t["fail_reasons"]) if t.get("fail_reasons") else None),
             }
             for t in tried
             if t.get("url")
         ]
 
-        # DNS 通过但没走进 HTTP 的候选（同 host 已成功过一次就 break 了），
-        # 也是探测证据 —— 不记下来就看不出「探过哪些、为什么没选它」。
-        attempted_hosts = {urlparse(t["url"]).hostname for t in tried if t.get("url")}
+        # DNS 失败/超时的候选同样是证据 —— 记为 dns_ok=0，不静默消失
+        attempted = {urlparse(t["url"]).hostname for t in tried if t.get("url")}
         out += [
             {
                 "school_id": sid,
-                "fetched_at": fetched_at,
+                "fetched_at": row_at,
                 "url": f"https://{host}/",
-                "dns_ok": 1,
+                "dns_ok": 0,
                 "http_status": None,
                 "score": None,
                 "is_best": 0,
-                "error": "DNS 通过，未发起 HTTP（同域名已有候选成功）",
+                "error": "DNS 解析失败或超时",
             }
-            for host in (r.get("portal_candidates") or [])
-            if host not in attempted_hosts
+            for host, ok in (r.get("portal_dns") or {}).items()
+            if not ok and host not in attempted
         ]
     return out
 

@@ -52,9 +52,10 @@
 ```powershell
 python -B tools/architecture/validate_release.py contracts/examples/descriptive.json
 python -B -m unittest discover -s tools/architecture -p 'test_*.py'
+python -B -m unittest discover -s crawler -p 'test_*.py'   # 入口探测 P0.1 离线验证（无网络请求）
 ```
 
-此校验只检查发布声明的一致性，不代替证据审核或正式模型验证。下一实施顺序为采集失败修复 → 证据与事实版本 → 1 池完整报告 → 多池情景比较 → 页面与模型准入，详见执行流程。
+此校验只检查发布声明的一致性，不代替证据审核或正式模型验证。下一实施顺序为采集失败修复 → 证据与事实版本 → 1 池完整报告 → 多池情景比较 → 页面与模型准入，详见执行流程。P0.1（入口探测修复）已完成，下一步 P0.2（快照与证据追加）。
 
 > 本地实测环境：Java 23.0.1 / Maven 3.9.9 / Python 3.12.5 / Node 22.19.0。
 > **Java 23 要求 Spring Boot ≥ 3.2**（3.2 起才支持 Java 22/23），不要用 2.x。
