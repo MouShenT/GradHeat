@@ -1,0 +1,36 @@
+{
+  "schema_version": "1.0",
+  "release_id": "synthetic-release-1",
+  "snapshot_id": "synthetic-snapshot-1",
+  "analysis_version": "fixture-only",
+  "capability": "descriptive",
+  "mode": "live_snapshot",
+  "cutoff": "2025-10-01T00:00:00Z",
+  "generated_at": "2025-10-02T00:00:00Z",
+  "evidence": [
+    {
+      "fact_revision": "synthetic-fact@1",
+      "pool_version": "synthetic-pool@1",
+      "source_url": "https://example.org/synthetic-notice",
+      "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+      "locator": "synthetic table row 1",
+      "published_at": "2025-09-01T00:00:00Z",
+      "observed_at": "2025-09-02T00:00:00Z",
+      "review_id": "synthetic-review"
+    }
+  ],
+  "checks": {
+    "pool_consistency": {
+      "status": "passed",
+      "report_ref": "synthetic-only:pool_consistency"
+    },
+    "evidence_review": {
+      "status": "passed",
+      "report_ref": "synthetic-only:evidence_review"
+    },
+    "snapshot_integrity": {
+      "status": "passed",
+      "report_ref": "synthetic-only:snapshot_integrity"
+    }
+  }
+}
