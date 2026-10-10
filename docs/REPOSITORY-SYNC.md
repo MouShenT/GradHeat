@@ -15,3 +15,5 @@ Get-Content .research/repo-sync/latest.json
 ```
 
 Git 使用现有凭据管理器，私有连接和日志不提交。首次启用钩子：`git config core.hooksPath .githooks`。后台只同步已提交源码，不自动加入工作目录。
+
+最新状态保存在 `.research/repo-sync/latest.json`，推送回执另存 `push.json`；部署版本在 `.research/frontend-dev/runtime.json` 的 `backend_source_sha`。已配置每小时巡检，只在实质更新或新持续故障时通知，不额外启动同步进程。钩子暂遇已有操作会延期，后续独立检查重试已提交业务版本。采集锁占用时更新延期，本地修改或分叉必须保留并处理后再同步。

@@ -158,6 +158,9 @@ def pull(root=ROOT, should_deploy=False):
     sha = status['remote_sha']
     deployed = deployed_source(root)
     if status['state'] == 'up-to-date' and (not should_deploy or deployed == sha):
+        request = root/'.research/repo-sync/deploy-request'
+        if request.is_file() and request.read_text(encoding='utf-8').strip() == sha:
+            request.unlink()
         return record(root,'pull',**status)
     audit(sha,root=root)
     immutable_migrations(status['local_sha'],sha,root)

@@ -24,7 +24,7 @@ from urllib.parse import quote
 from uuid import uuid4
 
 ROOT = Path(__file__).resolve().parents[2]
-for folder in (ROOT / 'crawler', ROOT / 'python_service', ROOT / 'python_service'):
+for folder in (ROOT / 'crawler', ROOT / 'python_service'):
     sys.path.insert(0, str(folder))
 
 import httpx
