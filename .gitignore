@@ -4,6 +4,9 @@
 .firecrawl/
 .claude/settings.local.json
 
+# ---- 本地项目状态文件（记录进度，不入库） ----
+/STATUS.md
+
 # ---- 凭据（含数据库密码，不提交）----
 .env
 !.env.example
@@ -37,6 +40,21 @@ dist-ssr/
 .vite/
 .env.local
 .env.*.local
+
+# Real collected records and local execution archives are never release code.
+/crawler/data/
+/docs/units/
+/artifacts/
+*.sqlite
+*.sqlite3
+*.db
+*.sql.gz
+*.dump
+*.log
+*.har
+*.pem
+*.key
+/contracts/runtime-connections.json
 
 # ---- IDE / 编辑器 ----
 .idea/

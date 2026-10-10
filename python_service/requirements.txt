@@ -1,0 +1,12 @@
+fastapi==0.128.0
+uvicorn==0.40.0
+pydantic==2.13.4
+PyMySQL==1.1.1
+pika==1.3.2
+PyMuPDF==1.28.2
+beautifulsoup4==4.11.1
+requests==2.33.1
+redis==5.2.1
+httpx==0.28.1
+lxml==6.1.1
+playwright==1.60.0

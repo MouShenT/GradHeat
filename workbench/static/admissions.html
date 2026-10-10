@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>GradHeat · 招生数据</title>
+  <link rel="stylesheet" href="/static/admissions.css">
+  <script src="/static/table-tools.js" defer></script>
+  <script src="/static/admissions.js" defer></script>
+  <script src="/static/admissions-decision.js" defer></script>
+  <link rel="stylesheet" href="/static/dashboard.css">
+  <link rel="stylesheet" href="/static/column-controls.css">
+  <script src="/static/dashboard.js" defer></script>
+</head>
+<body>
+  <aside class="sidebar">
+    <a class="brand" href="/">G<span>GradHeat<small>考研择校数据台</small></span></a>
+    <div class="year-tag">2027 入学 · 11408</div>
+    <nav aria-label="招生数据">
+      <button class="step" data-view="visuals"><b>00</b><span>院校数据图览<small>计划与历年表现</small></span></button>
+      <button class="step active" data-view="plans"><b>01</b><span>今年招生计划<small>专业、方向与人数</small></span></button>
+      <button class="step" data-view="history"><b>02</b><span>往年录取情况<small>分数线、人数与复录比</small></span></button>
+      <button class="step" data-view="compare"><b>03</b><span>我的比较清单<small>并排查看招生数据</small></span></button>
+      <button class="step" data-view="preferences"><b>04</b><span>按我的偏好选择<small>条件、评分与结果保存</small></span></button>
+      <button class="step" data-view="heat"><b>05</b><span>多平台热度<small>已存样本与采集状态</small></span></button>
+      <button class="step" data-view="recommend"><b>06</b><span>专业与层次推荐<small>无需分数，按偏好筛选</small></span></button>
+      <button class="step" data-view="game"><b>07</b><span>博弈情景<small>拥挤选择与需求变化</small></span></button>
+    </nav>
+    <div class="sidebar-foot">每天更新，逐步补齐。<br>缺失数字保持为空，待核数据单独标注。</div>
+  </aside>
+  <main>
+    <header class="topbar"><span>从数据开始，找到适合你的院校</span><span id="updated">正在加载…</span></header>
+    <div id="message" role="status" hidden></div>
+    <div class="heading"><div><p class="eyebrow">学硕与专硕 · 101 / 201 / 301 / 408</p><h1 id="page-title">今年，哪些专业值得关注？</h1><p id="subtitle">查看招生计划、考试科目和培养方式，加入比较清单。</p></div><div class="coverage" id="coverage"></div></div>
+    <details class="filters global-filter-panel" open><summary><span>范围与专业</span><span id="global-filter-summary">11408 · 全部单位</span><svg viewBox="0 0 20 20" aria-hidden="true"><path d="m5 8 5 5 5-5" fill="none" stroke="currentColor" stroke-width="1.5"/></svg></summary><div class="filter-fields">
+      <label class="search-label">院校 / 院系 / 专业<input id="search" type="search" placeholder="搜索院校名称、专业名称或代码"></label>
+      <label>招生单位<select id="unit"><option value="">全部单位</option></select></label>
+      <label>单位类别<select id="group"><option value="">全部类别</option></select></label>
+      <label>学位类型<select id="degree"><option value="">学硕与专硕</option><option>学术学位</option><option>专业学位</option></select></label>
+      <label>学习方式<select id="mode"><option value="">全部方式</option><option>全日制</option><option>非全日制</option></select></label>
+      <label>科目范围<select id="eligibility"><option value="matched">11408</option><option value="all">全部已整理专业</option></select></label>
+    </div></details>
+    <section id="plans" class="view">
+      <div class="notice">计划人数保留学校公布的口径。包含推免或专项的人数，不作为普通统考名额相加。</div>
+      <div class="table-heading"><span id="plan-count"></span><button class="text-button" data-reset-table="plan">清除本表筛选与排序</button><span>2027 招生计划</span></div>
+      <div class="table-wrap"><table id="plan-table"><thead></thead><tbody id="plan-body"></tbody></table></div>
+      <div id="plan-empty" class="empty" hidden>没有符合当前筛选的专业，试试调整条件。</div>
+    </section>
+    <section id="history" class="view" hidden>
+      <div class="history-controls"><label>录取年度<select id="history-year"><option value="2026">2026</option><option value="2025">2025</option><option value="2024">2024</option><option value="2023">2023</option><option value="all">所有年度</option></select></label><p>复录比＝复试人数 ÷ 拟录取人数。含专项或调剂的混合人数保持原值，不直接计算比值。</p></div>
+      <div class="table-heading"><span id="history-count"></span><button class="text-button" data-reset-table="history">清除本表筛选与排序</button><span>历年分数与人数</span></div>
+      <div class="table-wrap"><table id="history-table" class="history-table"><thead></thead><tbody id="history-body"></tbody></table></div>
+      <div id="history-empty" class="empty" hidden>当前范围暂无可展示的历史统计。</div>
+      <details><summary>其他范围的复试分数线</summary><p>校线、院线和专项线按各自统计范围展示。</p><button class="text-button" data-reset-table="line">清除本表筛选与排序</button><div class="table-wrap"><table id="line-table"><thead></thead><tbody id="line-body"></tbody></table></div></details>
+      <details><summary>名单分组的分数统计</summary><p>录取分组与复试分组分别标明；完整性待核，人数不作为整个专业的录取人数。</p><button class="text-button" data-reset-table="list">清除本表筛选与排序</button><div class="table-wrap"><table id="list-table"><thead></thead><tbody id="list-body"></tbody></table></div></details>
+    </section>
+    <section id="compare" class="view" hidden><div class="notice">历史记录按院校、院系和专业对应。年度考试科目分别保留，范围有歧义的记录单独提示。</div><div class="decision-actions"><button id="open-preferences" class="primary">按我的偏好比较 →</button></div><div id="comparison-grid" class="comparison-grid"></div><div id="compare-empty" class="empty">先在招生计划中选择专业，再并排查看。</div></section>
+    <section id="preferences" class="view" hidden>
+      <div class="notice">先填写个人条件，再按 0—10 分填写各项适配度，越高越适合你。可以填写一个范围；留空表示尚不了解。</div>
+      <form id="preference-form">
+        <div class="panel"><h2>我的报考条件</h2><label>比较名称<input id="comparison-title" maxlength="120" required value="我的2027择校比较"></label>
+          <div class="profile-options"><fieldset><legend>接受的学位类型</legend><label><input type="checkbox" name="accepted-degree" value="学术学位" checked>学硕</label><label><input type="checkbox" name="accepted-degree" value="专业学位" checked>专硕</label></fieldset><fieldset><legend>接受的学习方式</legend><label><input type="checkbox" name="accepted-mode" value="全日制" checked>全日制</label><label><input type="checkbox" name="accepted-mode" value="非全日制">非全日制</label></fieldset></div>
+          <label>个人备注<textarea id="profile-notes" maxlength="2000" rows="2" placeholder="例如：城市偏好、预算或职业方向"></textarea></label>
+        </div>
+        <div class="panel"><h2>我更看重什么</h2><p>权重 0—10；设为 0 表示本次不考虑这一项。默认权重相等。</p><div id="preference-weights" class="preference-weights"></div></div>
+        <div id="preference-candidates" class="preference-candidates"></div>
+        <div id="preference-empty" class="empty">先从招生计划中加入候选专业，再填写偏好。</div>
+        <div class="decision-actions"><button id="calculate-preferences" type="submit" class="primary">计算偏好比较</button><button id="save-preferences" type="button" class="secondary">保存本次比较</button><span id="preference-status" role="status"></span></div>
+      </form>
+      <section id="preference-results" class="panel" hidden aria-label="偏好比较结果"></section>
+      <details id="saved-comparisons"><summary>已保存的比较</summary><p>保存时固定本次招生资料与填写内容，后续资料更新不会改变这份结果。</p><button type="button" id="refresh-comparisons" class="text-button">读取保存记录</button><div id="comparison-sessions"></div></details>
+    </section>
+    <section id="visuals" class="view" hidden>
+      <div class="notice">查看当前筛选或比较清单中最多8个专业。每个专业和统计范围单列，含推免总计划与统考计划不合计。</div>
+      <div class="viz-grid"><article class="panel"><h2>2027公布计划</h2><div id="plan-chart"></div></article><article class="panel"><h2>2026 / 2025专业历史</h2><label>指标<select id="chart-metric"><option value="cutoff">复试总分线</option><option value="mean">录取初试均分</option><option value="minimum">录取初试最低分</option><option value="admit_count">拟录取人数</option><option value="interview_admit_ratio">复录比</option></select></label><div id="history-chart"></div></article></div>
+      <div id="visual-comparison" class="viz-grid"></div>
+    </section>
+    <section id="heat" class="view" hidden>
+      <div class="notice">每60秒刷新已存样本。显示实际采样时间与平台状态；有界关键词样本不等于全站热度，无样本不表示热度为零。</div>
+      <div class="inline-controls"><label>招生单位<select id="heat-unit"></select></label><button id="heat-refresh" class="secondary">刷新已存数据</button><span id="heat-status" role="status"></span></div>
+      <div id="heat-cards" class="viz-grid"></div>
+    </section>
+    <section id="recommend" class="view" hidden>
+      <article class="panel"><h2>先看专业、类别与本科背景条件</h2><p>不用填写初试分数。偏好得分反映你的选择，不表示录取难度；双非相关证据不足的专业保持待核。</p>
+      <form id="discovery-form"><fieldset><legend>感兴趣的专业</legend><div class="inline-controls"><label><input type="checkbox" name="major" value="计算机" checked>计算机</label><label><input type="checkbox" name="major" value="软件" checked>软件工程</label><label><input type="checkbox" name="major" value="人工智能" checked>人工智能</label><label><input type="checkbox" name="major" value="网安" checked>网络安全</label></div></fieldset>
+      <div class="inline-controls"><label>专业匹配权重<input id="major-weight" type="number" min="0" max="10" value="7"></label><label>类别偏好权重<input id="group-weight" type="number" min="0" max="10" value="3"></label><label>本科背景相关资料<select id="background-filter"><option value="all">全部；未知保持待核</option><option value="related-rules">已有相关报考规则</option><option value="unknown">友好程度尚未核准</option></select></label></div>
+      <p>以下是现有资料分组，并非实力榜。请按你的层次偏好填写0—10分，初始各类同为5分。</p><div id="discovery-groups" class="inline-controls"></div><button class="primary" type="submit">生成偏好推荐</button><span id="discovery-status" role="status"></span></form></article>
+      <div id="discovery-results" class="viz-grid"></div>
+    </section>
+    <section id="game" class="view" hidden>
+      <article class="panel"><h2>如果更多人选择同一专业，会怎样？</h2><p>先加入2—8个专业到比较清单，再填写假设容量和偏好。容量不自动读取招生总计划；这里模拟选择人数，不计算录取概率。</p><form id="game-form"><div class="inline-controls"><label>假设参与人数<input id="game-players" type="number" min="2" max="500" value="120" required></label><label>拥挤权重<input id="game-weight" type="number" min="0.1" max="20" step="0.1" value="2" required></label></div><div id="game-options" class="viz-grid"></div><button class="primary" type="submit">运行假设情景</button><span id="game-status" role="status"></span></form></article><article id="game-result" class="panel" hidden></article>
+    </section>
+    <details id="official-note-block" class="official-notes" hidden open><summary>官方资料核对说明</summary><p>两源及以上信息一致可去掉待验证标记；官方资料的对应情况另行保留。</p><ul id="official-notes"></ul></details>
+    <footer>“—”表示未知或尚未取得。待核数字可用于查阅，核对后再用于决策。</footer>
+  </main>
+  <div class="tray"><span id="selection-count">比较清单：0 个专业</span><div><button id="clear-selection" class="text-button">清空</button><button id="open-compare" class="primary">并排查看 →</button></div></div>
+</body>
+</html>

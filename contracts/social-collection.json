@@ -1,0 +1,15 @@
+{
+  "policy": "social-evidence-v1",
+  "collector": "D:/aaopenclow-share/mediacrawler",
+  "python": "D:/aaopenclow-share/mediacrawler/.venv/Scripts/python.exe",
+  "cdp_port": 9222,
+  "platforms": ["xhs", "zhihu", "dy", "bili"],
+  "units_per_day": 2,
+  "sorts": ["latest"],
+  "detail_limit": 6,
+  "worker_timeout_seconds": 150,
+  "query_version": "admissions-2027-v1",
+  "query_templates": ["{unit} 2027 计算机 考研", "{unit} 2026 计算机 复试 录取"],
+  "fallback_results_per_query": 3,
+  "fallback_max_pages": 6
+}

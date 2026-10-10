@@ -1,0 +1,2 @@
+# Applied migrations are checked by SHA-256 over exact bytes.
+crawler/sql/*.sql -text

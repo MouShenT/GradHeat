@@ -1,0 +1,5 @@
+{
+  "vm_host": "192.0.2.10",
+  "vm_user": "gradheat",
+  "host_key_alias": "192.0.2.10"
+}

@@ -1,0 +1,10 @@
+const assert=require('node:assert/strict');
+const {apply}=require('../static/table-tools.js');
+const columns=[{key:'school',value:r=>r.school},{key:'n',value:r=>r.n},{key:'mode',value:r=>r.mode}];
+const rows=[{school:'杭电',n:0,mode:'全日制'},{school:'北邮',n:25,mode:'全日制'},{school:'北邮',n:100,mode:'非全日制'},{school:'北邮',n:null,mode:'全日制'}];
+assert.deepEqual(apply(rows,columns,{filters:{school:{search:'北邮'},mode:{values:['全日制']}},sort:{key:'n',direction:'desc'}}).map(r=>r.n),[25,null]);
+assert.deepEqual(apply(rows,columns,{filters:{},sort:{key:'n',direction:'asc'}}).map(r=>r.n),[0,25,100,null]);
+assert.deepEqual(apply(rows,columns,{filters:{},sort:{key:'n',direction:'desc'}}).map(r=>r.n),[100,25,0,null]);
+assert.equal(apply(rows,columns,{filters:{mode:{values:[]}},sort:null}).length,0);
+assert.deepEqual(apply(rows,columns,{filters:{},sort:null}),rows);
+console.log('5 table filtering/sorting scenarios passed');

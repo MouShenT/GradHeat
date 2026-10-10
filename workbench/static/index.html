@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>GradHeat · 择校工作台</title>
+  <link rel="stylesheet" href="/static/style.css">
+  <link rel="stylesheet" href="/static/report.css">
+  <script src="/static/app.js" defer></script>
+</head>
+<body>
+  <aside class="sidebar">
+    <a class="brand" href="/">G<span>GradHeat<small>考研择校研究台</small></span></a>
+    <div class="year-tag">2027 入学 · 11408</div>
+    <nav aria-label="比较步骤">
+      <button class="step active" data-step="catalogue"><b>01</b><span>筛选专业<small>找到值得比较的项目</small></span></button>
+      <button class="step" data-step="facts"><b>02</b><span>并排核对<small>看计划、历史与原文</small></span></button>
+      <button class="step" data-step="preferences"><b>03</b><span>偏好情景<small>把选择条件说清楚</small></span></button>
+    </nav>
+    <button id="show-sessions" class="secondary">已保存的比较</button>
+    <div class="sidebar-foot">资料可以继续补，比较可以先开始。<br><span id="source-caption">正在读取资料…</span></div>
+  </aside>
+  <main>
+    <header class="topbar"><span>从信息到选择</span><div><span class="badge">研究草稿</span><span id="as-of"></span></div></header>
+    <div id="message" role="status" aria-live="polite" hidden></div>
+    <section id="catalogue" class="view">
+      <div class="heading"><div><p class="eyebrow">先缩小范围，再看差异</p><h1>你的下一站，从专业开始</h1><p>学硕与专硕都纳入。选择最多 8 个项目，建立自己的比较清单。</p></div><div class="coverage" id="coverage"></div></div>
+      <div class="notice">当前展示目录来源分组；同专业可能有多版来源。计划保留原文，普通统考净名额另行核验。</div>
+      <div class="filters">
+        <label class="search-label">院校 / 学院 / 专业<input id="search" type="search" placeholder="例如：杭州电子、085404、人工智能"></label>
+        <label>单位类别<select id="group"><option value="">全部类别</option></select></label>
+        <label>学位类型<select id="degree"><option value="">学硕与专硕</option><option>学术学位</option><option>专业学位</option></select></label>
+        <label>学习方式<select id="mode"><option value="">全部方式</option><option>全日制</option><option>非全日制</option></select></label>
+        <label>科目范围<select id="eligibility"><option value="matched">匹配 11408</option><option value="all">全部已提取资料</option></select></label>
+      </div>
+      <div class="table-heading"><span id="results-count"></span><span>专业目录 · 2027</span></div>
+      <div class="table-wrap"><table class="catalogue-table"><thead><tr><th>院校 / 院系</th><th>专业</th><th>学位 / 方式</th><th>原文计划</th><th>资料</th><th>比较清单</th></tr></thead><tbody id="catalogue-body"></tbody></table></div>
+      <div id="empty-catalogue" class="empty" hidden>没有符合当前筛选的资料。调整关键词或筛选条件试试。</div>
+    </section>
+    <section id="facts" class="view" hidden>
+      <div class="heading"><div><p class="eyebrow">把事实与未知摆在一起</p><h1>并排看，差异才清楚</h1><p>计划、校区与资格分别核验。历史资料按原始年度保留。</p></div><label>资料年度<select id="fact-year"><option value="2027">2027 招生信息</option><option value="2026">2026 录取资料</option><option value="2025">2025 录取资料</option></select></label></div>
+      <div class="notice">历史统计来自该单位的名单分组，尚未确认与所选专业同范围；仅供查看，不直接比较录取难度。</div>
+      <div id="facts-grid" class="comparison-grid"></div>
+    </section>
+    <section id="preferences" class="view" hidden>
+      <div class="heading"><div><p class="eyebrow">选择取决于你重视什么</p><h1>让偏好成为可解释的条件</h1><p>评分是你的主观适配度。可以填写区间，也可以留空；未知不会自动填成中间值。</p></div></div>
+      <div class="preference-layout">
+        <div>
+          <section class="panel"><h2>本次比较条件</h2><label>比较名称<input id="title" value="我的专业比较" maxlength="120"></label>
+            <div class="profile-options"><fieldset><legend>接受的学习方式</legend><label><input type="checkbox" id="profile-full" checked>全日制</label><label><input type="checkbox" id="profile-part">非全日制</label></fieldset><fieldset><legend>接受的学位类型</legend><label><input type="checkbox" id="profile-academic" checked>学术学位</label><label><input type="checkbox" id="profile-professional" checked>专业学位</label></fieldset></div>
+            <label>个人条件与备注<textarea id="profile-notes" rows="2" maxlength="2000" placeholder="例如：城市、费用约束，或需要继续核验的报考条件"></textarea></label>
+          </section>
+          <div id="rating-cards"></div>
+        </div>
+        <aside class="panel weights-panel"><h2>你有多重视？</h2><p class="muted">权重 0–10；0 表示不计入。默认相等，按自己的偏好调整。</p><div id="weights"></div>
+          <p class="muted">每项评分 0–10，越高越适合。费用评分越高，表示越可承受。</p>
+          <button id="evaluate" class="primary">查看偏好情景</button><button id="save" class="secondary">保存本次比较</button>
+          <p class="muted small">当前阶段不计算录取概率或热度。未核验的个人资格会保持待核。</p>
+        </aside>
+      </div>
+      <section id="analysis" class="panel" hidden></section>
+    </section>
+    <section id="sessions" class="view" hidden><div class="heading"><div><p class="eyebrow">保留每一次选择的依据</p><h1>已保存的比较</h1><p>记录保留当次输入、资料快照和结果；后续补采不会改写旧记录。</p></div></div><div id="session-list"></div></section>
+    <footer class="tray"><div><strong id="selected-count">尚未选择项目</strong><span id="selected-labels">从上方选择专业，开始你的比较。</span></div><div><button id="clear-selection" class="text-button">清空</button><button id="next-step" class="primary">开始并排核对 →</button></div></footer>
+  </main>
+  <dialog id="detail-dialog"><div class="dialog-top"><h2>专业资料</h2><button id="close-detail" class="text-button">关闭 ×</button></div><div id="detail-content"></div></dialog>
+</body>
+</html>
