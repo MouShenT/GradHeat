@@ -49,7 +49,7 @@ GitHub检索按[官方文档](https://docs.github.com/en/rest/search/search#sear
 | 4. MySQL与交接包 | 已验收 | 真实原件字节读回、包内SHA核对、ZIP及缺口JSON浏览器下载 |
 | 5. 合成与真实验证 | 已验收 | Python35项、旧业务131项；整站16项与采集9项合成浏览器检查；有界官网采集消息链16/16真实检查，不等于六渠道全量完备 |
 | 6. 页面入口、任务与说明 | 已完成 | 三步页面及启动手册；保留每日9点监测，日更只能使用明确登记的生产JSON，不取测试或最近批次作为新计划 |
-| 7. 代码与远程 | 进行中 | 白名单与凭据检查，真实材料不提交 |
+| 7. 代码与远程 | 已完成 | 白名单与私有值检查、全新暂存目录测试和SQL字节核对；2af562f推送codex/framework-migration-20261009并读回一致，真实材料不提交 |
 
 运行说明：docs/AUTONOMOUS-COLLECTION-RUNBOOK.md，网页启动见docs/APPLICATION-RUNBOOK.md。本机信息采集入口为http://127.0.0.1:18729/#/tasks。
 
