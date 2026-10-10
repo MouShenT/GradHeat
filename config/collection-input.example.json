@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "settings": {
+    "execution": {"default_hours": 8},
+    "official": {"max_pages_per_unit": 60, "max_depth": 3},
+    "social": {"detail_limit": 6, "image_limit": 6, "query_interval_seconds": 30}
+  },
+  "tasks": [
+    {"platform":"official","unit":"北京邮电大学","query":"北京邮电大学 2027 硕士 招生 专业目录 408","domains":["bupt.edu.cn"],"urls":["https://yzb.bupt.edu.cn/"],"limit":8},
+    {"platform":"official","query":"2026 2025 计算机 拟录取名单 复试 分数线 408","limit":8},
+    {"platform":"xhs","query":"北京邮电大学 2027 408 考研","sort":"latest","limit":6},
+    {"platform":"zhihu","query":"北京邮电大学 计算机 考研 复试 双非","sort":"latest","limit":6},
+    {"platform":"dy","query":"北京邮电大学 2027 408 考研","sort":"general","limit":6},
+    {"platform":"bili","query":"北京邮电大学 408 考研 复试","sort":"latest","limit":6},
+    {"platform":"github","query":"kaoyan408 in:name,description,readme","limit":3},
+    {"platform":"github","repo":"Laz8Noy/kaoyan408-share"}
+  ]
+}

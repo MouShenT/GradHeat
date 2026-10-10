@@ -1,0 +1,10 @@
+<script setup lang="ts">
+import { computed, ref } from 'vue'
+import { ChevronDown, Search, SlidersHorizontal, X } from 'lucide-vue-next'
+import { groups, state } from '../state'
+defineProps<{ historical?: boolean }>()
+const expanded = ref(typeof window !== 'undefined' && window.innerWidth > 640)
+const count = computed(() => [state.unit, state.group, state.degree, state.mode].filter(Boolean).length)
+function reset() { state.search = ''; state.unit = ''; state.group = ''; state.degree = ''; state.mode = ''; state.scope = 'matched' }
+</script>
+<template><section class="scope-panel"><div class="scope-primary"><label class="search-field"><Search :size="18" /><input v-model="state.search" type="search" placeholder="搜索院校、院系或专业代码" aria-label="搜索院校院系专业"><kbd>/</kbd></label><div class="segmented"><button :class="{ selected: state.scope === 'matched' }" @click="state.scope = 'matched'">11408</button><button :class="{ selected: state.scope === 'all' }" @click="state.scope = 'all'">全部科目</button></div><button class="button subtle filter-toggle" :aria-expanded="expanded" @click="expanded = !expanded"><SlidersHorizontal :size="16" />筛选<span v-if="count" class="count-dot">{{ count }}</span><ChevronDown :size="14" :class="{ rotated: expanded }" /></button></div><div v-if="expanded" class="scope-secondary"><label>招生单位<select v-model="state.unit"><option value="">全部院校 / 研究所</option><option v-for="unit in state.data?.units" :key="unit.name">{{ unit.name }}</option></select></label><label>院校类别<select v-model="state.group"><option value="">全部类别</option><option v-for="group in groups" :key="group">{{ group }}</option></select></label><label v-if="!historical">学位类型<select v-model="state.degree"><option value="">学硕与专硕</option><option>学术学位</option><option>专业学位</option></select></label><label v-if="!historical">学习方式<select v-model="state.mode"><option value="">全部方式</option><option>全日制</option><option>非全日制</option></select></label><button class="text-button reset-filters" @click="reset"><X :size="14" />清空条件</button></div></section></template>

@@ -1,0 +1,9 @@
+{
+  "version": "bounded-autonomous-v1",
+  "official": {"max_pages_per_unit": 60, "max_depth": 3, "max_file_bytes": 50000000, "timeout_seconds": 30, "host_interval_seconds": 2, "browser_fallback": true},
+  "social": {"platforms": ["xhs", "zhihu", "dy", "bili"], "detail_limit": 6, "image_limit": 6, "query_interval_seconds": 30},
+  "github": {"enabled": true, "max_archive_bytes": 150000000},
+  "execution": {"default_hours": 8, "max_attempts": 2},
+  "storage": {"mode": "mysql-vm", "publish_admissions": false},
+  "notes": "Finite keyword samples and bounded official crawl; no comments/videos or admission probability. Public originals only."
+}

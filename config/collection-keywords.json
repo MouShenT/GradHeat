@@ -1,0 +1,19 @@
+{
+  "version": "graduate-collection-v1",
+  "entry_year": 2027,
+  "history_years": [2026, 2025],
+  "subject_terms": ["计算机", "软件工程", "人工智能", "网络空间安全", "电子信息", "408", "11408"],
+  "official_link_terms": ["硕士", "研究生", "招生", "简章", "目录", "计划", "初试", "科目", "408", "复试", "录取", "调剂", "计算机", "软件", "人工智能", "网络空间"],
+  "query_templates": [
+    {"id": "catalogue", "topic": "招生目录", "template": "{unit} {entry_year} 计算机 硕士 招生简章 专业目录"},
+    {"id": "plan", "topic": "计划及口径", "template": "{unit} {entry_year} 计算机 考研 招生计划 推免 统考名额"},
+    {"id": "exam-change", "topic": "科目变更", "template": "{unit} {entry_year} 408 英语一 数学一 改考"},
+    {"id": "retest", "topic": "复试线和办法", "template": "{unit} {last_year} 计算机 复试分数线 复录比 复试办法"},
+    {"id": "admitted", "topic": "去年拟录取", "template": "{unit} {last_year} 计算机 拟录取名单 初试分数 招生人数"},
+    {"id": "history", "topic": "前年录取", "template": "{unit} {previous_year} 计算机 考研 拟录取 复试线"},
+    {"id": "background", "topic": "背景经验材料", "template": "{unit} 计算机 考研 双非 复试 经历"},
+    {"id": "direction", "topic": "专业方向材料", "template": "{unit} 软件工程 人工智能 计算机 研究方向 就业 考研"}
+  ],
+  "platform_sorts": {"xhs": "latest", "zhihu": "latest", "dy": "general", "bili": "latest"},
+  "repositories": ["Laz8Noy/kaoyan408-share", "zhwen2703-hash/kaoyan-recommendation-platform", "ccdgr/cs-assistant", "csseky/cskaoyan", "wenliang90/408exam"]
+}

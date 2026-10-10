@@ -1,85 +1,49 @@
 # GradHeat
 
-> 11408 考研院校专业热度评估与择校分析平台
+计算机考研择校应用：招生计划、历年录取、院校档案、热度值与个人胜利指数。目标科目为 101 / 201 / 301 / 408，支持学硕、专硕和个人条件稍后填写。
 
-多维度评估 11408（政治 + 英一 + 数一 + 408）相关考研院校/专业的热度，以网站形式呈现。
+## 当前结构
 
-**核心原则：承认数据缺失，用可量化的方式表达可信度，而不是假装数据完整。**
+| 目录 | 职责 |
+|---|---|
+| frontend/ | Vue 3、TypeScript、Vite，表格、图表与个人条件 |
+| backend/ | Spring Boot，统一 /api/v1、比较档案与消息事务 |
+| python_service/gradheat_python/ | 内部 API、独立采集、worker 与院校数据库 |
+| python_service/gradheat_core/ | 语义匹配、共享算法、热度与胜利指数 |
+| crawler/ | 原件归档、迁移、核对与资料发布 |
+| tools/application/ | 独立开发服务 |
+| tools/research/ | 当前流程所需采集、解析和恢复 |
+| tools/release/ | 源码审查、干净副本验证、双向仓库同步 |
+| infra/、contracts/ | 基础设施模板与接口约定 |
 
-## 文档
+旧网页已退役，各模块共用一套算法。真实材料、数据、日志、生成查询和凭据留在本地忽略目录与 MySQL。
 
-- [设计方案](docs/DESIGN.md) —— 维度框架、技术选型、架构、真实性保障机制
-- [相似项目调研](docs/PRIOR-ART.md) —— 开工前的同类项目/工具调研与可用性验证结论
+## 运行
 
-## 开发前置规则
+准备 Node、Java 21+、Python 3.12、Maven，以及私有数据库连接和已信任的 SSH 配置：
 
-**任何模块开工前，先查 GitHub 上有没有同类项目或可用工具，验证其可用性与可靠性（活跃度、核心假设是否仍成立、许可证），结论写入 [docs/PRIOR-ART.md](docs/PRIOR-ART.md)。**
-
-不因为 star 多就采用，也不因为小众就忽略 —— 看的是①能不能用、②还能不能用、③许可证允不允许。
-
-## 目录结构
-
-```
-├── backend/          Spring Boot 服务（Java 17）
-├── crawler/          Python 爬虫（Scrapy + Playwright）
-├── web/              前端（Vue 3 + TypeScript + ECharts）
-├── infra/docker/     基础设施（MySQL / Redis / RabbitMQ）
-└── docs/             设计文档
-```
-
-## 技术栈
-
-| 层 | 选型 |
-|----|------|
-| 前端 | Vue 3 + TypeScript + Vite + Element Plus + ECharts |
-| 后端 | Spring Boot 3.2+ + Java 17/23 + MyBatis-Plus |
-| 存储 | MySQL 8.0 / Redis 7 |
-| 消息 | RabbitMQ 3.13 |
-| 采集 | Python + Scrapy + Playwright |
-
-> 本地实测环境：Java 23.0.1 / Maven 3.9.9 / Python 3.12.5 / Node 22.19.0。
-> **Java 23 要求 Spring Boot ≥ 3.2**（3.2 起才支持 Java 22/23），不要用 2.x。
-
-## 环境
-
-基础设施部署在 Kali VM（`192.168.43.150`）。**存储/中间件跑 Docker，需要出网的采集/搜索服务跑宿主机** —— 容器不配代理（它们都是内网服务），出网任务直接用宿主机已有的 mihomo（`127.0.0.1:7890`）。
-
-```bash
-# 启动基础设施（Docker：MySQL / Redis / RabbitMQ）
-ssh ms@192.168.43.150 "cd /opt/gradheat/infra/docker && docker compose up -d"
-
-# 本地开发隧道
-ssh -N -L 13306:127.0.0.1:3306 -L 16379:127.0.0.1:6379 -L 15673:127.0.0.1:15672 -L 18890:127.0.0.1:8890 ms@192.168.43.150
+```powershell
+python -m pip install -r python_service/requirements.txt
+.\tools\build-application.ps1
+.\tools\start-frontend.ps1
 ```
 
-详见 [infra/docker/README.md](infra/docker/README.md)。
+开发页面：<http://127.0.0.1:5173/>。Windows 独立管理服务；前端保存源码热更新，关闭聊天或 Codex 不停止。见[运行手册](docs/APPLICATION-RUNBOOK.md)和[前端管理](docs/FRONTEND-DEV-SERVICE.md)。
 
-### SearXNG（全网搜索）
+热度综合公开讨论与实际搜索。搜索缺失时保留讨论估算状态。胜利指数结合个人条件和院校资料，为参考指数，见[算法说明](docs/ALGORITHMS.md)。院校档案独立存储，来源与原件留在后台。
 
-自建元搜索，跑在 Kali 宿主机上（`systemd` 服务 `searxng`，监听 `127.0.0.1:8890`），出网经 mihomo —— mihomo 是 `mode: rule`，**国内域名直连、境外走隧道**，已实测（百度 0.25s、清华 0.85s、Google 约 3.4s）。
+采集可上传 JSON，或运行 tools/run-collection.ps1。已有任务先完成，后续排队，完整原件不重采。见[采集手册](docs/AUTONOMOUS-COLLECTION-RUNBOOK.md)。
 
-```bash
-# JSON API（开发用；HTML 前端可用上面的隧道 18890 打开）
-curl -G 'http://127.0.0.1:8890/search' \
-  --data-urlencode 'q=西安电子科技大学 计算机 拟录取名单' \
-  --data-urlencode 'format=json'
+## 开发与同步
+
+```powershell
+python -m unittest discover -s python_service/tests
+npm.cmd --prefix frontend test
+python tools/release/stage_code.py --stage
+python tools/release/verify_code_checkout.py
+git commit -m "业务变化"
 ```
 
-配置：`/opt/gradheat/searxng-config/settings.yml` ｜ 服务：`/etc/systemd/system/searxng.service`
+本地提交审查后推送 main。独立服务每 15 分钟检查远程，工作目录干净且可快进时验证新版本，再更新运行服务；未提交修改保护现场。见[仓库同步](docs/REPOSITORY-SYNC.md)。
 
-**引擎实测状态（2026-09-18）**：
-
-| 引擎 | 状态 | 说明 |
-|------|------|------|
-| `google cse` | ✅ 稳定 | 走官方 API，不受 IP 风控影响，是主力 |
-| `brave` | ✅ 可用 | 直接抓取 |
-| `bing` | ✅ 可用 | 直接抓取（需显式指定 `engines=bing`） |
-| `google` | ❌ CAPTCHA | 代理 IP 被 Google 标记 |
-| `duckduckgo` | ❌ CAPTCHA | 同上 |
-| `baidu` | ❌ 302 验证 | 需真实浏览器种下的 BAIDUID cookie，与代理无关（直连同样被挡） |
-
-> ⚠️ **配置这两个坑必须避开**（已处理）：`search.formats` 不加 `json` 会让 JSON API 返回 **403**；`limiter` 必须关闭。
-
-## 状态
-
-Phase 0 准备中 —— 详见 [设计方案](docs/DESIGN.md) 路线图。
+[当前状态](docs/STATUS.md) · [后续任务](docs/TASKS.md) · [架构](docs/ARCHITECTURE.md) · [任务约定](AGENTS.md)

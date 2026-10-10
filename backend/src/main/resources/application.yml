@@ -1,0 +1,46 @@
+server:
+  address: ${GRADHEAT_BIND_ADDRESS:127.0.0.1}
+  port: ${GRADHEAT_JAVA_PORT:18729}
+  error:
+    include-message: never
+spring:
+  application:
+    name: gradheat-business
+  datasource:
+    url: ${GRADHEAT_MYSQL_URL:jdbc:mysql://127.0.0.1:3306/gradheat?connectionTimeZone=UTC&forceConnectionTimeZoneToSession=true&characterEncoding=UTF-8}
+    username: ${GRADHEAT_MYSQL_USER:gradheat}
+    password: ${GRADHEAT_MYSQL_PASSWORD:}
+    hikari:
+      initialization-fail-timeout: -1
+      connection-timeout: 5000
+      maximum-pool-size: 8
+  data:
+    redis:
+      host: ${GRADHEAT_REDIS_HOST:127.0.0.1}
+      port: ${GRADHEAT_REDIS_PORT:6379}
+      password: ${GRADHEAT_REDIS_PASSWORD:}
+      connect-timeout: 1s
+      timeout: 1s
+  rabbitmq:
+    host: ${GRADHEAT_RABBIT_HOST:127.0.0.1}
+    port: ${GRADHEAT_RABBIT_PORT:5672}
+    username: ${GRADHEAT_RABBIT_USER:gradheat}
+    password: ${GRADHEAT_RABBIT_PASSWORD:}
+    virtual-host: ${GRADHEAT_RABBIT_VHOST:/gradheat}
+    publisher-confirm-type: correlated
+    publisher-returns: true
+    template:
+      mandatory: true
+    listener:
+      simple:
+        acknowledge-mode: manual
+        prefetch: 1
+        auto-startup: ${GRADHEAT_MESSAGING_ENABLED:false}
+        default-requeue-rejected: false
+gradheat:
+  messaging-enabled: ${GRADHEAT_MESSAGING_ENABLED:false}
+  redis-enabled: ${GRADHEAT_REDIS_ENABLED:false}
+  python-url: ${GRADHEAT_PYTHON_URL:http://127.0.0.1:18730}
+  python-token: ${GRADHEAT_INTERNAL_TOKEN:}
+  api-token: ${GRADHEAT_API_TOKEN:}
+  public-write-enabled: ${GRADHEAT_PUBLIC_WRITE_ENABLED:false}

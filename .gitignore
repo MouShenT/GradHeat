@@ -1,6 +1,15 @@
 # ---- MCP / Claude 本地配置（含密钥，不提交） ----
 .mcp.json
+.research/
+.firecrawl/
 .claude/settings.local.json
+
+# ---- 本地项目状态文件（记录进度，不入库） ----
+/STATUS.md
+
+# ---- 凭据（含数据库密码，不提交）----
+.env
+!.env.example
 
 # ---- 临时文件 ----
 .tmp-*
@@ -31,6 +40,24 @@ dist-ssr/
 .vite/
 .env.local
 .env.*.local
+
+# Real collected records and local execution archives are never release code.
+/crawler/data/
+/docs/units/
+/artifacts/
+*.sqlite
+*.sqlite3
+*.db
+*.sql.gz
+*.dump
+*.log
+*.har
+*.pem
+*.key
+/contracts/runtime-connections.json
+# Generated collection plans belong to the local data workspace.
+/config/collection-input.detailed-*.json
+/crawler/queries/
 
 # ---- IDE / 编辑器 ----
 .idea/

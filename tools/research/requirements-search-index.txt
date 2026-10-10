@@ -1,0 +1,1 @@
+qdata @ git+https://github.com/longxiaofei/spider-BaiduIndex.git@fe251d22a9938ee9f0bd667ad153cd9f1da20fef

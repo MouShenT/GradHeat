@@ -1,0 +1,4 @@
+#!/bin/sh
+# User-authorized code-only push; private data never enters this hook.
+root=$(git rev-parse --show-toplevel) || exit 0
+python "$root/tools/release/sync_repository.py" push --from-hook
