@@ -6,6 +6,8 @@
 
 独立开发管理进程每 15 分钟调用 `sync_repository.py pull --deploy`，后台数据服务未就绪时仍执行仓库检查。仅获取固定仓库 `main`；本地修改、分叉、采集锁占用或验证失败时保留现场。新版本从无数据副本检查和构建，通过后快进，并更新专属后台构建，不清库、不启动采集。
 
+常驻管理服务重启而 API 尚在启动时，若同一版本的受管安装产物仍通过路径和字节校验，只检查仓库状态，不重复构建该版本。仓库已同步与服务真正就绪分别检查；坏校验和或受管目录外的产物不能复用。
+
 ```powershell
 python tools/release/stage_code.py --stage
 python tools/release/verify_code_checkout.py

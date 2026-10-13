@@ -142,6 +142,17 @@ def deployed_source(root=ROOT):
             return runtime.get('backend_source_sha')
     except (OSError,ValueError):
         pass
+    # A manager restart can precede API readiness. Reuse the already validated
+    # installed artifact instead of rebuilding the same version during startup.
+    try:
+        build=json.loads((root/'.research/frontend-dev/backend-build.json').read_text(encoding='utf-8'))
+        sha=build['source_sha'];jar=Path(build['jar']).resolve()
+        if len(sha) not in (40,64) or any(c not in '0123456789abcdef' for c in sha):return None
+        expected=(root/'.research/application-builds'/sha/'gradheat-backend-0.1.0.jar').resolve()
+        if jar==expected and hashlib.sha256(jar.read_bytes()).hexdigest()==build['jar_sha256']:
+            return sha
+    except (OSError,ValueError,KeyError,TypeError):
+        pass
     return None
 
 

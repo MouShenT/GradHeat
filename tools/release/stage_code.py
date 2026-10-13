@@ -111,11 +111,27 @@ def audit(ref='HEAD', root=ROOT, needles=None):
     entries = git('ls-files', '-z', root=root) if ref == ':' else git('ls-tree', '-r', '--name-only', '-z', ref, root=root)
     paths = list(filter(None, entries.decode('utf-8').split('\0')))
     failures = []
+    selected = [path for path in paths if allowed(path)]
+    if any('\n' in path or '\r' in path for path in selected):
+        raise ValueError('Invalid source object path')
+    queries = ''.join(((':' if ref==':' else ref+':')+path+'\n') for path in selected).encode('utf-8')
+    packed = subprocess.run(['git','cat-file','--batch'],input=queries,cwd=root,capture_output=True,check=True).stdout
+    bodies = {};offset=0
+    for path in selected:
+        end=packed.find(b'\n',offset)
+        header=packed[offset:end].split() if end>=0 else []
+        if len(header)!=3 or header[1]!=b'blob' or not header[2].isdigit():
+            raise ValueError('Source object lookup failed')
+        size=int(header[2]);start=end+1;offset=start+size
+        if offset>=len(packed) or packed[offset:offset+1]!=b'\n':
+            raise ValueError('Source object boundary failed')
+        bodies[path]=packed[start:offset];offset+=1
+    if offset!=len(packed):raise ValueError('Unexpected source object output')
     for path in paths:
         if not allowed(path):
             failures.append({'path': path, 'reason': 'outside-maintained-source'})
             continue
-        body = git('show', ':' + path if ref == ':' else ref + ':' + path, root=root)
+        body = bodies[path]
         if len(body) > 3_000_000 or b'\0' in body:
             failures.append({'path': path, 'reason': 'binary-or-unexpected-size'})
         if any(value in body for value in needles):

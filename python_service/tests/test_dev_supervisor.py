@@ -9,9 +9,34 @@ from unittest.mock import Mock, patch
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / 'tools/application'))
 import dev_supervisor
 import launcher
+from runtime_json import write_runtime
 
 
 class SupervisorTests(unittest.TestCase):
+    def test_short_reader_lock_preserves_old_receipt_until_atomic_replacement(self):
+        with tempfile.TemporaryDirectory() as directory:
+            pointer=Path(directory)/'runtime.json';pointer.write_text('{"state":"old"}',encoding='utf-8')
+            original=Path.replace;calls=0
+            def replace(path,target):
+                nonlocal calls
+                calls+=1
+                if calls<=2:
+                    self.assertEqual(json.loads(pointer.read_text())['state'],'old')
+                    raise PermissionError('synthetic reader lock')
+                return original(path,target)
+            with patch.object(Path,'replace',new=replace),patch('runtime_json.time.sleep'):
+                write_runtime(pointer,dict(state='new',components={'frontend':'ready'}))
+            self.assertEqual(json.loads(pointer.read_text()),dict(state='new',components={'frontend':'ready'}))
+            self.assertEqual(list(pointer.parent.glob('*.tmp')),[])
+
+    def test_permanent_denial_leaves_original_receipt_intact(self):
+        with tempfile.TemporaryDirectory() as directory:
+            pointer=Path(directory)/'runtime.json';pointer.write_bytes(b'{"state":"old"}')
+            with patch.object(Path,'replace',side_effect=PermissionError('synthetic denial')),patch('runtime_json.time.sleep'):
+                with self.assertRaises(PermissionError):write_runtime(pointer,dict(state='new'))
+            self.assertEqual(pointer.read_bytes(),b'{"state":"old"}')
+            self.assertEqual(list(pointer.parent.glob('*.tmp')),[])
+
     def test_unready_api_does_not_stop_repository_checks_or_create_duplicates(self):
         with tempfile.TemporaryDirectory() as directory:
             root=Path(directory);folder=root/'runtime';folder.mkdir()

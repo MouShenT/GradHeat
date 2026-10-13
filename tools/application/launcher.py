@@ -17,6 +17,7 @@ import time
 import urllib.error
 import urllib.parse
 import urllib.request
+from runtime_json import write_runtime
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / 'crawler'))
@@ -105,7 +106,7 @@ def run(args):
             'java_port':args.java_port,'python_port':args.python_port,'worker_queues':[] if args.no_worker else ['analyse.long','collect.autonomous.win-primary']}
         pointer = folder/'runtime.json'
         def save():
-            temp = folder/'runtime.tmp';temp.write_text(json.dumps(runtime),encoding='utf-8');temp.replace(pointer)
+            write_runtime(pointer,runtime)
         save()
         try:
             runtime['phase'] = 'infrastructure-discovery'; save()

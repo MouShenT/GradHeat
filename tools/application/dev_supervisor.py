@@ -19,6 +19,7 @@ import urllib.request
 import webbrowser
 
 from launcher import ROOT, FLAGS, exclusive_lock
+from runtime_json import write_runtime
 
 
 class WindowsJob:
@@ -120,9 +121,7 @@ def reachable(url):
 
 def save(folder, value):
     value['updated_at'] = datetime.now(timezone.utc).isoformat()
-    temporary = folder / 'runtime.tmp'
-    temporary.write_text(json.dumps(value, ensure_ascii=False, indent=2), encoding='utf-8')
-    temporary.replace(folder / 'runtime.json')
+    write_runtime(folder / 'runtime.json', value)
 
 
 def run(config):
