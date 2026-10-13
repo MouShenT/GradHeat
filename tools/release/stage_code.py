@@ -10,6 +10,7 @@ SOURCE_ROOTS = ('frontend/', 'backend/', 'python_service/', 'crawler/gradheat/',
 FILES = {
     'AGENTS.md', 'README.md', '.gitignore', '.gitattributes', '.dockerignore', '.mcp.json.example',
     '.githooks/post-commit', 'config/collection-input.example.json', 'config/collection-keywords.json',
+    'config/parallel-collection.example.json',
     'config/collection-policy.json', 'contracts/README.md', 'contracts/social-collection.json',
     'contracts/runtime-connections.example.json', 'contracts/application-v1/README.md',
     'crawler/README.md', 'crawler/.env.example', 'crawler/run_daily_update.py',
@@ -31,6 +32,7 @@ COLLECTORS = {
     'refine_download_resources', 'refresh_dossier_sources', 'resume_social_backlog', 'review_social_access',
     'run_full_social_collection', 'social_evidence', 'supplement_missing_sources', 'validate_unit_dossiers',
     'build_intelligence_queries', 'collect_search_indices', 'queue_intelligence_collection', 'refresh_school_intelligence',
+    'expand_school_basics', 'evaluate_index_models', 'collect_community_sources', 'collect_parallel_sources', 'zhihu_browser_search',
 }
 FILES.update('tools/research/' + name + '.py' for name in COLLECTORS)
 FILES.update('tools/research/' + name for name in ('firecrawl.ps1', 'searxng.ps1', 'agent-browser.ps1', 'requirements-search-index.txt'))

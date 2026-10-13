@@ -170,6 +170,14 @@ def run(config):
                         attempts[name] += 1
                         retry_at[name] = time.monotonic() + min(60, 2 ** min(attempts[name], 6))
                         metadata['components'][name] = dict(state='retrying', exit_code=code)
+                        if name == 'backend':
+                            try:
+                                failure = json.loads(backend_runtime.read_text(encoding='utf-8'))
+                            except (OSError, ValueError):
+                                failure = {}
+                            if failure.get('pid') == component[0].pid:
+                                for key in ('failure_phase', 'error_type'):
+                                    if failure.get(key): metadata['components'][name][key] = failure[key]
                     if components[name] is None and time.monotonic() >= retry_at[name]:
                         if name == 'backend':
                             backend_stop.unlink(missing_ok=True)
@@ -218,7 +226,8 @@ def run(config):
                     if pending != observed_request:
                         observed_request = pending
                         next_sync = time.monotonic()
-                if config.get('repository_sync') and sync_component is None and front_ready and back_ready and time.monotonic() >= next_sync:
+                # Repository checks remain available while an API dependency is unavailable.
+                if config.get('repository_sync') and sync_component is None and time.monotonic() >= next_sync:
                     sync_component = start([config['python'], '-X', 'utf8', '-B',
                                             str(ROOT/'tools/release/sync_repository.py'), 'pull', '--deploy'], log, ROOT)
                 for _ in range(10):

@@ -1,0 +1,10 @@
+{
+  "schema_version": 1,
+  "as_of": "2026-10-13",
+  "social": [
+    {"platform": "bili", "query": "计算机考研 复试 机试", "limit": 20, "pages": 1},
+    {"platform": "xhs", "query": "27考研 408 择校", "limit": 20, "pages": 1},
+    {"platform": "dy", "query": "计算机考研 择校", "limit": 20, "pages": 1}
+  ],
+  "websites": [{"unit": "示例招生单位", "url": "https://example.edu/admissions"}]
+}

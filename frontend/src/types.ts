@@ -4,6 +4,7 @@ export interface Programme extends DataRow {
   directions: string[]; subjects: string[]; degree_type: string; mode: string
   plan_text?: string; plan_status?: string; ordinary_quota?: number | null; campus?: string
   eligible_11408: boolean | null
+  decision_inputs?: { threshold: number | null; threshold_year: number | null; ordinary_quota: number | null; capacity_proxy: number | null; capacity_year: number | null; retest_weights: Record<string, number>; retest_weights_year?: number; admitted_scores: { year?: number; population?: string; mean?: number; minimum?: number; maximum?: number } }
 }
 export interface Admissions {
   target_year: number; data_as_of: string; last_checked?: string

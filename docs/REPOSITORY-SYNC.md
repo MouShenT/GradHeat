@@ -4,7 +4,7 @@
 
 本地设置 `core.hooksPath=.githooks`。提交后调用 `sync_repository.py push`，审查完整提交树和未推送提交，确保没有本地数据或已知私有值，再快进推送。不强推，失败保留本地提交并写回执。
 
-独立开发管理进程每 15 分钟调用 `sync_repository.py pull --deploy`。仅获取固定仓库 `main`；本地修改、分叉、采集锁占用或验证失败时保留现场。新版本从无数据副本检查和构建，通过后快进，并更新专属后台构建，不清库、不启动采集。
+独立开发管理进程每 15 分钟调用 `sync_repository.py pull --deploy`，后台数据服务未就绪时仍执行仓库检查。仅获取固定仓库 `main`；本地修改、分叉、采集锁占用或验证失败时保留现场。新版本从无数据副本检查和构建，通过后快进，并更新专属后台构建，不清库、不启动采集。
 
 ```powershell
 python tools/release/stage_code.py --stage

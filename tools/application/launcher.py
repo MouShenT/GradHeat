@@ -108,13 +108,18 @@ def run(args):
             temp = folder/'runtime.tmp';temp.write_text(json.dumps(runtime),encoding='utf-8');temp.replace(pointer)
         save()
         try:
+            runtime['phase'] = 'infrastructure-discovery'; save()
             ssh, target = ssh_connection()
             addresses = {}
             import ipaddress
             for name in ('mysql','redis','rabbitmq'):
                 observed = subprocess.run(ssh+[target,"sudo -n docker inspect gradheat-"+name+" --format '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}'"],
-                    capture_output=True,text=True,timeout=15,check=True,creationflags=FLAGS)
+                    capture_output=True,text=True,timeout=15,creationflags=FLAGS)
+                if observed.returncode:
+                    log.write(observed.stderr.encode('utf-8', errors='replace')); log.flush()
+                    raise RuntimeError('Infrastructure discovery failed; inspect private.log locally')
                 addresses[name] = str(ipaddress.ip_address(observed.stdout.strip()))
+            runtime['phase'] = 'infrastructure-forwarding'; save()
             ports = {name:free_port() for name in addresses}
             forward = ssh+['-o','ExitOnForwardFailure=yes','-o','ServerAliveInterval=30','-N']
             for name,remote_port in [('mysql',3306),('redis',6379),('rabbitmq',5672)]:
@@ -140,6 +145,7 @@ def run(args):
                 GRADHEAT_DB_NAME=private['MYSQL_DATABASE'])
             python_env=dict(common,GRADHEAT_BIND_HOST='127.0.0.1',GRADHEAT_PYTHON_PORT=str(args.python_port))
             api = start([sys.executable,'-X','utf8','-B','-m','gradheat_python.api'],children,log,python_env)
+            runtime['phase'] = 'python-readiness'; save()
             ready = wait_http(f'http://127.0.0.1:{args.python_port}/internal/v1/ready',[tunnel,api],token,
                               timeout=args.startup_timeout,request_timeout=args.startup_request_timeout)
             java_env=dict(common,GRADHEAT_JAVA_PORT=str(args.java_port),GRADHEAT_BIND_ADDRESS='127.0.0.1',
@@ -151,6 +157,7 @@ def run(args):
                 GRADHEAT_RABBIT_VHOST='/gradheat',GRADHEAT_MESSAGING_ENABLED='true',
                 GRADHEAT_PYTHON_URL=f'http://127.0.0.1:{args.python_port}',GRADHEAT_PUBLIC_WRITE_ENABLED='true')
             business = start([java,'-jar',str(jar)],children,log,java_env)
+            runtime['phase'] = 'java-readiness'; save()
             wait_http(f'http://127.0.0.1:{args.java_port}/api/v1/admissions',[tunnel,api,business],
                       timeout=args.startup_timeout,request_timeout=args.startup_request_timeout)
             if not args.no_worker:
@@ -160,7 +167,7 @@ def run(args):
                 start([sys.executable,'-X','utf8','-B','-m','gradheat_python.worker'],children,log,worker_env)
                 collector_env=dict(worker_env,GRADHEAT_WORKER_ID='win-primary',GRADHEAT_WORKER_QUEUES='collect.autonomous.win-primary')
                 start([sys.executable,'-X','utf8','-B','-m','gradheat_python.worker'],children,log,collector_env)
-            runtime.update(state='ready',data_version=ready['data_version'],child_pids=[p.pid for p in children])
+            runtime.update(state='ready',phase='running',data_version=ready['data_version'],child_pids=[p.pid for p in children])
             save()
             print(json.dumps({'state':'ready','url':runtime['url'],'worker_queues':runtime['worker_queues']},ensure_ascii=False),flush=True)
             end = time.monotonic()+args.run_seconds if args.run_seconds else None
@@ -168,6 +175,9 @@ def run(args):
                 if any(p.poll() is not None for p in children):
                     raise RuntimeError('Application child exited; inspect private.log locally')
                 time.sleep(.5)
+        except Exception as error:
+            runtime.update(failure_phase=runtime.get('phase'), error_type=type(error).__name__)
+            raise
         finally:
             for process in reversed(children):
                 if process.poll() is None:

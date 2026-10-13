@@ -41,6 +41,32 @@ class SchoolIntelligenceTests(unittest.TestCase):
             result=worker.read_checkpoint(dict(checkpoint=str(checkpoint)))
         self.assertEqual({d['content_id'] for d in result['documents']},{'a','b'})
 
+    def test_wrapped_timeout_is_not_a_login_gate(self):
+        import mediacrawler_worker as worker
+        inner=TimeoutError('private detail')
+        outer=RuntimeError('retry failed');outer.last_attempt=type('Attempt',(),{'exception':lambda self:inner})()
+        r=worker.failure_status('bili',outer)
+        self.assertEqual(r['state'],'partial');self.assertEqual(r['reason'],'page-or-search-response-timeout')
+        self.assertEqual(worker.failure_status('xhs',ValueError('unexpected result shape'))['state'],'partial')
+        from social_evidence import PlatformVerificationRequired
+        self.assertEqual(worker.failure_status('dy',PlatformVerificationRequired())['state'],'needs-human')
+
+    def test_connection_preserves_default_context_when_sdk_supports_it(self):
+        from open_social_login import connect_existing_browser
+        calls=[]
+        async def modern(endpoint, *, timeout, no_defaults=False):
+            calls.append((timeout,no_defaults));return 'browser'
+        fake=type('Playwright',(),{'chromium':type('Chromium',(),{})()})()
+        fake.chromium.connect_over_cdp=modern
+        with patch('open_social_login.debugger_endpoint',return_value='ws://127.0.0.1:9222/synthetic'):
+            self.assertEqual(asyncio.run(connect_existing_browser(fake,9222)),'browser')
+        self.assertEqual(calls,[(15000,True)])
+        async def older(endpoint, *, timeout):
+            return timeout
+        fake.chromium.connect_over_cdp=older
+        with patch('open_social_login.debugger_endpoint',return_value='ws://127.0.0.1:9222/synthetic'):
+            self.assertEqual(asyncio.run(connect_existing_browser(fake,9222)),15000)
+
     def test_broad_comparison_splits_schools_and_ambiguous_alias_is_not_assigned(self):
         units=['北京邮电大学','南京邮电大学','华东师范大学','华中师范大学','电子科技大学','西安电子科技大学']
         found=identify(dict(title='北邮和南邮计算机考研怎么选',query='11408 择校'),units)

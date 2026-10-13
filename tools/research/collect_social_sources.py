@@ -26,13 +26,33 @@ def platform_health():
     return health
 
 
-def set_platform_health(platform, state, reason=None):
+def set_platform_health(platform, state, reason=None, restriction_scope=None):
     path = ROOT / '.research/social/platform-health' / (platform + '.json')
     path.parent.mkdir(parents=True, exist_ok=True)
+    previous = platform_health().get(platform, {})
+    restrictions = dict(previous.get('restrictions') or {})
+    if previous.get('restriction_scope') and previous.get('reason') == 'platform-access-refused':
+        restrictions.setdefault(previous['restriction_scope'], dict(reason=previous['reason'], checked_at=previous.get('checked_at')))
     record = dict(state=state, reason=reason, checked_at=now())
+    if state == 'retry-authorized':
+        restrictions = {}
+    elif restriction_scope and reason == 'platform-access-refused':
+        restrictions[restriction_scope] = dict(reason=reason, checked_at=record['checked_at'])
+    if restrictions:
+        record['restrictions'] = restrictions
+        if state == 'accessible' and platform == 'zhihu' and 'platform-detail' in restrictions:
+            record.update(state='partial-access', reason='platform-access-refused', restriction_scope='platform-detail')
+    if restriction_scope:record['restriction_scope']=restriction_scope
     temp = path.with_name(path.stem + '-' + uuid.uuid4().hex + '.tmp')
     temp.write_text(encode(record), encoding='utf-8')
     temp.replace(path)
+
+
+def platform_paused(platform, health):
+    # A refused detail endpoint does not prohibit a normal public search page.
+    return health.get('state') == 'needs-human' and not (
+        platform == 'zhihu' and health.get('reason') == 'platform-access-refused'
+        and health.get('restriction_scope') == 'platform-detail')
 
 
 @contextmanager
@@ -335,10 +355,20 @@ def run(*, config_path=None, as_of=None, units_override=None, imports=None, lega
     as_of = as_of or date.today().isoformat()
     unit_registry = ROOT / '.research/unit-dossiers-20261001/dossiers.json'
     units = [d['unit'] for d in json.loads(unit_registry.read_text(encoding='utf-8'))] if unit_registry.is_file() else []
+    registered = set(units)
     units = list(dict.fromkeys(units + list(units_override or [])))
     if not units:
         raise ValueError('Provide collection units or an existing candidate registry')
     selected = units_override or units_for_day(units, as_of, config['units_per_day'])
+    # Expand attribution without changing the frozen daily query rotation.
+    extended = ROOT / '.research/full-collection-20261008/expanded-corpus.json'
+    if extended.is_file():
+        registry = json.loads(extended.read_text(encoding='utf-8'))
+        names = [u.get('name') or u.get('unit') for u in registry['units'] if u.get('name') or u.get('unit')]
+        registered.update(names)
+        units = list(dict.fromkeys(units + names))
+    if generic_search:
+        units = [u for u in units if u in registered]
     if not units_override and len(selected) > 4:
         raise ValueError('Daily unit budget too large')
     run_id = run_id_override or as_of.replace('-', '') + '-' + uuid.uuid4().hex[:12]
@@ -365,7 +395,9 @@ def run(*, config_path=None, as_of=None, units_override=None, imports=None, lega
                             manifest['jobs'].append(dict(task, state='needs-human', reason='chrome-debugging-unavailable'))
                             continue
                         health = platform_health().get(platform, {})
-                        if health.get('state') == 'needs-human':
+                        detail_only = (platform=='zhihu' and health.get('reason')=='platform-access-refused'
+                                       and health.get('restriction_scope')=='platform-detail')
+                        if platform_paused(platform, health):
                             manifest['jobs'].append(dict(task, state='needs-human',
                                 reason=health['reason'], retry_state='paused-until-human-completes-verification'))
                             continue
@@ -382,10 +414,14 @@ def run(*, config_path=None, as_of=None, units_override=None, imports=None, lega
                             if data.get('reason') == 'platform-verification-required':
                                 set_platform_health(platform, 'needs-human', data['reason'])
                             elif data.get('state') == 'needs-human' and data.get('error_type') in (
-                                    'ForbiddenError', 'PlatformAccessError', 'IPBlockError', 'DataFetchError', 'ValueError'):
-                                set_platform_health(platform, 'needs-human', data.get('reason'))
+                                    'ForbiddenError', 'PlatformAccessError', 'IPBlockError'):
+                                set_platform_health(platform, 'needs-human', data.get('reason'),data.get('failure_phase'))
                             elif data.get('state') in ('collected', 'empty-sample'):
-                                set_platform_health(platform, 'accessible')
+                                if detail_only:
+                                    set_platform_health(platform,'partial-access','platform-access-refused','platform-detail')
+                                else:set_platform_health(platform, 'accessible')
+                            elif data.get('state') == 'partial':
+                                set_platform_health(platform, 'transient-error', data.get('reason'))
                             for doc in data.pop('documents', []):
                                 doc.update(query=query, query_sort=data.get('actual_sort') or sort,
                                     requested_query_sort=sort, collection_route=data.get('collection_route') or 'mediacrawler-client',

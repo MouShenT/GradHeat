@@ -232,6 +232,30 @@ def document(platform, raw, *, full=False):
         content_level='full-text' if full else 'excerpt', image_urls=[])
 
 
+def zhihu_search_document(content, response):
+    """Retain exposed post text/counts; never treat an AI summary as a post."""
+    if content.get('content_type') not in ('answer','article'):
+        return None
+    raw=next((r.get('object') for r in response.get('data',[]) if isinstance(r,dict)
+              and isinstance(r.get('object'),dict) and str(r['object'].get('id'))==str(content.get('content_id'))
+              and r['object'].get('type')==content['content_type']),None)
+    obj=dict(content)
+    import html
+    obj['title']=html.unescape(re.sub(r'<[^>]+>','',str(obj.get('title') or '')))
+    if raw:
+        body=raw.get('content')
+        if isinstance(body,str) and body:
+            body=re.sub(r'<(?:script|style)\b[^>]*>.*?</(?:script|style)>','',body,flags=re.S|re.I)
+            body=re.sub(r'</(?:p|h[1-6]|li|div)>|<br\s*/?>','\n\n',body,flags=re.I)
+            obj['content_text']=html.unescape(re.sub(r'<[^>]+>','',body)).strip()
+        obj['created_time']=raw.get('created_time') or raw.get('created')
+    doc=document('zhihu',obj,full=False)
+    doc['metrics']=exposed_metrics(response,content['content_id'],content['content_type']) or {k:None for k in ('voteup_count','comment_count')}
+    doc['metrics_context']='visible-search-result-at-observation-time'
+    doc['collection_route']='zhihu-search-response'
+    return doc
+
+
 def snapshot(doc, run_id, artifact):
     path = Path(artifact).resolve()
     result = public_response(dict(doc, run_id=run_id, observed_at=doc.get('observed_at') or now(),

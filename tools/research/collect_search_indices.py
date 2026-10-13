@@ -138,7 +138,8 @@ def collect(queries, cookie_path, sdk_path, output, start, end, max_queries=60, 
                             keyword=row['keyword'],value=row['value'],reference_scale=REFERENCE_SCALE,
                             source_url='https://index.baidu.com/v2/main/index.html#/trend/'+quote(row['keyword'])+'?words='+quote(row['keyword']),
                             window_start=row['window_start'],window_end=row['window_end'],observed_at=observed,
-                            region='全国',device='PC+移动',scope='graduate-admissions-keyword',coverage=row['coverage'],raw_sha256=sha))
+                            region='全国',device='PC+移动',scope='graduate-admissions-keyword',coverage=row['coverage'],daily=row['daily']['all'],raw_sha256=sha,
+                            source_artifact=str((output/(sha+'.json')).resolve())))
                 report['queried_keywords'].extend(chunk);save()
             save()
         report['state']='collected' if report['signals'] else 'no-indexed-keywords'

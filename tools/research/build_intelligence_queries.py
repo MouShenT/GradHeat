@@ -13,11 +13,17 @@ from gradheat_core.intelligence import ALIASES, UCAS_COLLEGES, unique_units
 BROAD = ['2027 11408 计算机考研 择校', '27考研 408 985 211 择校', '计算机考研 双非 上岸 院校推荐',
     '408 考研 复试线 录取最低分', '计算机考研 冷门 捡漏 大小年', '11408 软件工程 人工智能 网络安全 择校',
     '计算机考研 跨考 复试 机试', '2027 408 改考 扩招 缩招', '计算机考研 华东 华南 华中 院校对比',
-    '计算机考研 北京 上海 江苏 浙江 四川 院校', '408 考研 统考名额 推免比例', '计算机考研 复录比 录取均分']
+    '计算机考研 北京 上海 江苏 浙江 四川 院校', '408 考研 统考名额 推免比例', '计算机考研 复录比 录取均分',
+    '2027 计算机考研 非全日制 全日制 名额', '408 考研 初试复试 权重 机试',
+    '计算机考研 同等学力 跨专业 报考限制', '计算机考研 校区 联合培养 普通统考 名额',
+    '2026 计算机考研 复试单科线 政治 英语 数学', '2027 11408 新增院校 专业目录']
 TEMPLATES = ['2027 11408 考研', '27考研 408 择校', '计算机 考研 复试线', '2026 计算机 录取最低分',
     '2025 计算机 拟录取', '计算机 统考名额 招生计划', '计算机 双非 复试 上岸', '计算机 跨考 复试 机试',
     '408 改考 扩招 缩招', '软件工程 考研', '人工智能 考研', '网络空间安全 考研',
-    '计算机 考研 就业 导师', '计算机 考研 报录比 复录比']
+    '计算机 考研 就业 导师', '计算机 考研 报录比 复录比',
+    '计算机 考研 初试复试 权重', '计算机 考研 单科线 英语 数学',
+    '计算机 考研 同等学力 报考限制', '计算机 考研 校区 联合培养 名额',
+    '2027 计算机 研究生院 招生目录', '计算机 考研 非全日制 学费 学制']
 
 def build(units, platforms=('bili','xhs','zhihu','dy')):
     tasks=[]
@@ -29,7 +35,7 @@ def build(units, platforms=('bili','xhs','zhihu','dy')):
         for word in TEMPLATES:
             for platform in platforms:
                 tasks.append(dict(platform=platform,unit=unit,query=f'{search_name} {word}',sort='general' if platform=='dy' else 'latest',limit=20 if platform=='dy' else 60,pages=1 if platform=='dy' else 3))
-        for alias in ALIASES.get(unit,[])[:1]:
+        for alias in ALIASES.get(unit,[]):
             for platform in platforms:
                 tasks.append(dict(platform=platform,unit=unit,query=f'{alias} 27考研 408',sort='general',limit=20,pages=1))
     return dict(schema_version=1,note='大类结果按正文识别院校，多校帖分别归档；首次有限采集后按冻结队列续跑。',

@@ -17,8 +17,8 @@ import secrets
 import time
 from http.server import BaseHTTPRequestHandler, HTTPServer
 
-from social_evidence import clean_url, count, document, encode, exposed_metrics, note_items, now, public_response, select_related, validate_search, video_items, PlatformVerificationRequired
-from open_social_login import debugger_endpoint
+from social_evidence import clean_url, count, document, encode, note_items, now, public_response, select_related, validate_search, video_items, PlatformVerificationRequired
+from open_social_login import debugger_endpoint, connect_existing_browser
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -29,6 +29,22 @@ def is_xhs_verification_error(exc):
     attempt=getattr(exc,'last_attempt',None)
     cause=attempt.exception() if attempt is not None else exc
     return str(cause).startswith('CAPTCHA appeared, request failed,')
+
+
+def failure_status(platform, exc):
+    """An adapter/network failure is a gap; only explicit refusal pauses a platform."""
+    attempt=getattr(exc,'last_attempt',None)
+    cause=attempt.exception() if attempt is not None else exc
+    kind=type(cause).__name__
+    if isinstance(cause,PlatformVerificationRequired) or platform=='xhs' and is_xhs_verification_error(exc):
+        return dict(state='needs-human',reason='platform-verification-required',error_type='PlatformVerificationRequired')
+    if 'Timeout' in kind:
+        return dict(state='partial',reason='page-or-search-response-timeout',error_type=kind)
+    if kind in ('ForbiddenError','IPBlockError','PlatformAccessError'):
+        return dict(state='needs-human',reason='platform-access-refused',error_type=kind)
+    if isinstance(cause,OSError) or any(word in kind for word in ('Connection','Network','Transport','Connect','ReadError')):
+        return dict(state='partial',reason='platform-network-unavailable',error_type=kind)
+    return dict(state='partial',reason='platform-response-or-adapter-error',error_type=kind)
 
 
 def read_checkpoint(task):
@@ -147,7 +163,11 @@ async def close_owned_page(page):
 
 
 async def collect_page(task):
-    result = dict(state='needs-human', reason='chrome-debugging-unavailable', documents=[],
+    if task['platform'] == 'zhihu':
+        from zhihu_browser_search import collect as browser_search
+        return await browser_search(task)
+    result = dict(state='partial', reason='chrome-debugging-unavailable', documents=[],
+        failure_phase='local-debugging-check',
         platform=task['platform'], keyword=task['keyword'], observed_at=now(),
         detail_budget=task['limit'], search_page_size=15 if task['platform'] == 'dy' else 20, pages_requested=1,
         detail_selection='first-page-relevance-v2', eligibility_state='requires-exam-scope-check')
@@ -177,12 +197,15 @@ async def collect_page(task):
             Path(task['checkpoint']).write_text(encode(result), encoding='utf-8')
     async with async_playwright() as p:
         try:
-            browser = await p.chromium.connect_over_cdp(debugger_endpoint(task['cdp_port']), timeout=15000)
+            result['failure_phase']='browser-connect'
+            browser = await connect_existing_browser(p, task['cdp_port'])
             if not browser.contexts:
                 result['reason'] = 'existing-browser-context-missing'
                 return result
             ctx = browser.contexts[0]
+            result['failure_phase']='browser-page-create'
             page = await ctx.new_page()
+            result['failure_phase']='platform-navigation'
             if task['platform'] == 'xhs':
                 from media_platform.xhs.core import XiaoHongShuCrawler
                 from media_platform.xhs.field import SearchSortType
@@ -190,60 +213,24 @@ async def collect_page(task):
                 crawler = XiaoHongShuCrawler()
                 await page.goto(crawler.index_url, wait_until='domcontentloaded', timeout=25000)
                 crawler.browser_context, crawler.context_page = ctx, page
+                result['failure_phase']='platform-client-create'
                 client = await crawler.create_xhs_client(None)
                 capture_requests(client, responses, 'xhs')
                 sort = SearchSortType.LATEST if task['sort'] == 'latest' else SearchSortType.MOST_POPULAR if task['sort'] == 'popular' else SearchSortType.GENERAL
+                result['failure_phase']='platform-search'
                 raw = await client.get_note_by_keyword(task['keyword'], search_id=get_search_id(), page=task.get('page',1), sort=sort)
                 validate_search('xhs', raw)
                 result['has_more'] = raw.get('has_more')
                 result['search_items'] = len(raw.get('items', []))
                 selected = select_related(list(note_items(raw, 100)),task,lambda x:(x.get('note_card') or {}).get('display_title') or x.get('title'))
                 result['related_cards_selected'] = len(selected)
+                result['failure_phase']='platform-detail'
                 for item in selected:
                     await asyncio.sleep(3)
                     detail = await client.get_note_by_id(item['id'], item.get('xsec_source') or 'pc_search', item.get('xsec_token') or '')
                     if detail:
                         result['documents'].append(document('xhs', public_response(detail), full=True))
                         checkpoint()
-            elif task['platform'] == 'zhihu':
-                from media_platform.zhihu.core import ZhihuCrawler
-                from media_platform.zhihu.field import SearchSort
-                crawler = ZhihuCrawler()
-                url = 'https://www.zhihu.com/search?type=content&q=' + quote(task['keyword'])
-                await page.goto(url, wait_until='domcontentloaded', timeout=25000)
-                await asyncio.sleep(3)
-                crawler.browser_context, crawler.context_page = ctx, page
-                client = await crawler.create_zhihu_client(None)
-                client.default_headers['referer'] = url
-                capture_requests(client, responses, 'zhihu')
-                sort = SearchSort.CREATE_TIME if task['sort'] == 'latest' else SearchSort.UPVOTED_COUNT if task['sort'] == 'popular' else SearchSort.DEFAULT
-                found = await client.get_note_by_keyword(task['keyword'], page=task.get('page',1), page_size=20, sort=sort)
-                search_response = responses[-1] if responses else {}
-                result['search_items'] = len(found)
-                seen = set()
-                selected_cards = select_related(found,task,lambda x:x.title)
-                result['related_cards_selected'] = len(selected_cards)
-                for content in selected_cards:
-                    key = (content.content_type, content.content_id)
-                    if key in seen:
-                        continue
-                    seen.add(key)
-                    await asyncio.sleep(3)
-                    detail = None
-                    if content.content_type == 'article':
-                        detail = await client.get_article_info(content.content_id)
-                    elif content.content_type == 'answer':
-                        detail = await client.get_answer_info(content.question_id, content.content_id)
-                    selected = detail or content
-                    obj = selected.model_dump()
-                    doc = document('zhihu', obj, full=detail is not None)
-                    # Pydantic defaults conceal missing counts; derive only from exposed raw JSON.
-                    doc['metrics'] = exposed_metrics(search_response, content.content_id, content.content_type) or {k: None for k in ('voteup_count', 'comment_count')}
-                    doc['metrics_context'] = 'visible-search-result-at-observation-time'
-                    result['documents'].append(doc)
-                    checkpoint()
-                    if len(result['documents']) >= task['limit']:
-                        break
             elif task['platform'] == 'dy':
                 from media_platform.douyin.core import DouYinCrawler
                 crawler = DouYinCrawler()
@@ -288,9 +275,11 @@ async def collect_page(task):
                 await page.goto('https://www.douyin.com/search/' + quote(task['keyword']),
                     wait_until='domcontentloaded', timeout=25000)
                 crawler.browser_context, crawler.context_page = ctx, page
+                result['failure_phase']='platform-client-create'
                 client = await crawler.create_douyin_client(None)
                 result['login_confirmed'] = await client.pong(ctx)
                 # Use the browser's real search request, without replaying guessed signatures.
+                result['failure_phase']='platform-search'
                 raw = await asyncio.wait_for(network.get(), timeout=25)
                 result['collection_route'] = 'browser-network-observation'
                 result['observed_requests'] = request_metadata
@@ -313,9 +302,11 @@ async def collect_page(task):
                 await page.goto(crawler.index_url, wait_until='domcontentloaded', timeout=25000)
                 crawler.browser_context, crawler.context_page = ctx, page
                 crawler.user_agent = await page.evaluate('() => navigator.userAgent')
+                result['failure_phase']='platform-client-create'
                 client = await crawler.create_bilibili_client(None)
                 capture_requests(client, responses, 'bili')
                 sort = SearchOrderType.LAST_PUBLISH if task['sort'] == 'latest' else SearchOrderType.MOST_CLICK if task['sort'] == 'popular' else SearchOrderType.DEFAULT
+                result['failure_phase']='platform-search'
                 raw = await client.search_video_by_keyword(task['keyword'], page=task.get('page',1), page_size=20, order=sort)
                 validate_search('bili', raw)
                 result['search_items'] = len(raw['result'])
@@ -330,13 +321,15 @@ async def collect_page(task):
                     checkpoint()
             result['state'] = 'collected' if result['documents'] else 'empty-sample'
             result['reason'] = None if result['documents'] else 'no-related-detail-in-first-page'
+            result.pop('failure_phase',None)
         except PlatformVerificationRequired:
             result.update(state='needs-human', reason='platform-verification-required',
                 handoff_url=clean_url(page.url) if page else None)
             if page and not task.get('generic_search'):
                 await page.bring_to_front()
         except (TimeoutError, asyncio.TimeoutError):
-            result.update(state='partial',reason='page-or-search-response-timeout',error_type='TimeoutError')
+            reason='browser-connection-timeout' if result.get('failure_phase')=='browser-connect' else 'page-or-search-response-timeout'
+            result.update(state='partial',reason=reason,error_type='TimeoutError')
         except Exception as exc:
             # Do not persist exception strings containing response bodies or session URLs.
             attempt=getattr(exc,'last_attempt',None)
@@ -346,9 +339,10 @@ async def collect_page(task):
                     handoff_url=clean_url(page.url) if page else None,error_type='PlatformVerificationRequired')
                 if page and not task.get('generic_search'):await page.bring_to_front()
             else:
-                result.update(state='partial' if result['documents'] else 'needs-human',
-                    reason='platform-access-or-login-check', error_type=type(cause).__name__,
+                result.update(**failure_status(task['platform'],exc),
                     outer_error_type=type(exc).__name__ if cause is not exc else None)
+                if 'Timeout' in type(cause).__name__ and result.get('failure_phase')=='browser-connect':
+                    result['reason']='browser-connection-timeout'
         finally:
             if task.get('generic_search') or result.get('reason') != 'platform-verification-required':
                 await close_owned_page(page)
@@ -374,7 +368,7 @@ async def collect(task):
             Path(sub['checkpoint']).unlink(missing_ok=True)
         result = await collect_page(sub)
         combined = result
-        receipts.append({k:result.get(k) for k in ('state','reason','search_items','has_more')} | {'page':page_number})
+        receipts.append({k:result.get(k) for k in ('state','reason','failure_phase','search_items','has_more')} | {'page':page_number})
         for doc in result.pop('documents',[]): documents[(doc['platform'],doc['content_id'])] = doc
         responses.extend(result.pop('public_responses',[]))
         combined = dict(result,documents=list(documents.values()),public_responses=responses,

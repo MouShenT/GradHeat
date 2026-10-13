@@ -6,6 +6,7 @@ exported. This program never closes an existing browser or its pages.
 import argparse
 import asyncio
 import json
+import inspect
 import os
 from pathlib import Path
 import socket
@@ -42,6 +43,15 @@ def browser_health(port):
         return bool(debugger_endpoint(port))
     except Exception:
         return False
+
+
+async def connect_existing_browser(playwright, port):
+    method=playwright.chromium.connect_over_cdp
+    options={'timeout':15000}
+    # Newer Playwright can preserve the user's default context settings.
+    if 'no_defaults' in inspect.signature(method).parameters:
+        options['no_defaults']=True
+    return await method(debugger_endpoint(port),**options)
 
 
 def select_browser_port(preferred):
@@ -85,7 +95,7 @@ def start_collection_browser(port):
 async def open_login_pages(port):
     from playwright.async_api import async_playwright
     async with async_playwright() as p:
-        browser = await p.chromium.connect_over_cdp(debugger_endpoint(port), timeout=15000)
+        browser = await connect_existing_browser(p, port)
         if not browser.contexts:
             raise RuntimeError('浏览器没有可用会话。')
         context = browser.contexts[0]
