@@ -13,6 +13,21 @@ class DossierReaderTests(unittest.TestCase):
         db=MagicMock();con=db.connect.return_value.__enter__.return_value;cur=con.cursor.return_value.__enter__.return_value
         return p,d,body,sha,db,cur
 
+    def test_official_reference_uses_public_link_contract_without_raw_provenance(self):
+        p,d,body,sha,db,cur=self.fixture()
+        d['decision_facts']=[dict(year=2026,department='计算机学院',major_code='081200',major_name='计算机',mode='全日制',
+            route='first-choice',population='ordinary',values=dict(cutoff=310),campus='乙校区',cutoff_kind='school-minimum',
+            excerpt='校级最低要求，院系可另定要求',source_url='https://school.example.edu/rules.pdf',
+            source_artifact='D:/private/synthetic-original.pdf',source_sha256='b'*64)]
+        body=canonical(d).encode();sha=hashlib.sha256(body).hexdigest();cur.fetchone.return_value=(sha,body)
+        result=DossierReader(db).public('甲校','a'*64);reference=result['decision_facts'][0]
+        self.assertEqual(reference['url'],'https://school.example.edu/rules.pdf')
+        self.assertEqual(reference['campus'],'乙校区')
+        self.assertEqual(reference['cutoff_kind'],'school-minimum')
+        for key in ('source_url','source_artifact','source_sha256'):
+            self.assertNotIn(key,canonical(result))
+        self.assertNotIn('D:/private',canonical(result))
+
     def test_single_school_reads_only_requested_original_and_rejects_corruption(self):
         p,d,body,sha,db,cur=self.fixture();cur.fetchone.return_value=(sha,body)
         reader=DossierReader(db);result=reader.public('甲校','a'*64)

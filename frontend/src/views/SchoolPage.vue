@@ -5,7 +5,7 @@ import { state } from '../state'
 import type { Programme, DataRow } from '../types'
 interface Fact {
   year: number; department: string; major_code: string; major_name: string; mode: string; route: string; population: string
-  campus?: string; cutoff_kind?: string; excerpt?: string; source_url?: string
+  campus?: string; cutoff_kind?: string; excerpt?: string; url?: string
   values: { cutoff?: number; ordinary_quota?: number; admitted_mean?: number; admitted_minimum?: number; admitted_count?: number; initial_weight?: number; interview_weight?: number; machine_test_weight?: number }
 }
 interface CommunitySource { title: string; url: string; score_url: string; pages: {title: string; url: string}[]; scores: {year: number; degree_type: string; major_name: string; exam_text: string; cutoff: number; plan: string; special: boolean; score_limits: Record<string,number>}[] }
@@ -56,7 +56,7 @@ onUnmounted(()=>{revision++;if(timer)clearInterval(timer)})
       <div class="index-table"><table>
         <thead><tr><th>年度 / 专业</th><th>普通统考名额</th><th>分数要求</th><th>成绩与复试</th></tr></thead>
         <tbody><tr v-for="(f,i) in school.decision_facts" :key="i">
-          <td>{{f.year}} · {{f.major_name}}<small>{{f.department}} · {{f.major_code}} · {{f.mode}}</small><small v-if="f.campus">{{f.campus}}</small><small v-if="f.route !== 'first-choice'">{{f.route === 'transfer' ? '调剂' : '推免'}}</small><small v-if="f.population==='observed-sample'">已取得名单样本</small><details v-if="f.excerpt || f.source_url"><summary>范围与来源</summary><p>{{f.excerpt}}</p><a v-if="f.source_url" :href="f.source_url" target="_blank" rel="noopener noreferrer">查看原文 ↗</a></details></td>
+          <td>{{f.year}} · {{f.major_name}}<small>{{f.department}} · {{f.major_code}} · {{f.mode}}</small><small v-if="f.campus">{{f.campus}}</small><small v-if="f.route !== 'first-choice'">{{f.route === 'transfer' ? '调剂' : '推免'}}</small><small v-if="f.population==='observed-sample'">已取得名单样本</small><details v-if="f.excerpt || f.url"><summary>范围与来源</summary><p>{{f.excerpt}}</p><a v-if="f.url" :href="f.url" target="_blank" rel="noopener noreferrer">查看原文 ↗</a></details></td>
           <td>{{f.values.ordinary_quota ?? '—'}}</td><td>{{f.values.cutoff ?? '—'}}<small v-if="f.cutoff_kind==='school-minimum'">校级最低要求</small></td>
           <td><small v-if="f.values.admitted_mean != null">均分 {{f.values.admitted_mean}} · 最低 {{f.values.admitted_minimum ?? '—'}}</small><small v-if="f.values.interview_weight != null">复试 {{percent(f.values.interview_weight)}} · 初试 {{percent(f.values.initial_weight)}}</small><small v-if="f.values.machine_test_weight != null">机试占复试 {{percent(f.values.machine_test_weight)}}</small></td>
         </tr></tbody>
