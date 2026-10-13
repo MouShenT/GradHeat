@@ -5,6 +5,7 @@ import { state } from '../state'
 import type { Programme, DataRow } from '../types'
 interface Fact {
   year: number; department: string; major_code: string; major_name: string; mode: string; route: string; population: string
+  campus?: string; cutoff_kind?: string; excerpt?: string; source_url?: string
   values: { cutoff?: number; ordinary_quota?: number; admitted_mean?: number; admitted_minimum?: number; admitted_count?: number; initial_weight?: number; interview_weight?: number; machine_test_weight?: number }
 }
 interface CommunitySource { title: string; url: string; score_url: string; pages: {title: string; url: string}[]; scores: {year: number; degree_type: string; major_name: string; exam_text: string; cutoff: number; plan: string; special: boolean; score_limits: Record<string,number>}[] }
@@ -41,10 +42,10 @@ onUnmounted(()=>{revision++;if(timer)clearInterval(timer)})
     <div class="index-table"><table>
       <thead><tr><th>院系 / 专业</th><th>考试科目</th><th>本年度普通统考名额</th><th>历史分数参考</th></tr></thead>
       <tbody><tr v-for="p in school.programmes" :key="p.id">
-        <td>{{p.department}}<small>{{p.major_name}} · {{p.major_code}} · {{p.mode}}</small></td>
+        <td>{{p.department}}<small>{{p.major_name}} · {{p.major_code}} · {{p.mode}}</small><small v-if="p.scope">{{p.scope}}</small></td>
         <td>{{p.subjects.join(' / ')}}</td>
         <td><strong>{{p.decision_inputs?.ordinary_quota ?? '—'}}</strong><small>{{p.plan_text||'名额待补齐'}}</small><small v-if="p.decision_inputs?.ordinary_quota == null && p.decision_inputs?.capacity_proxy != null">容量参考：{{p.decision_inputs.capacity_year}} 年 {{p.decision_inputs.capacity_proxy}} 人</small></td>
-        <td v-if="p.decision_inputs?.threshold != null">{{p.decision_inputs.threshold_year}} 年复试线 {{p.decision_inputs.threshold}}<small v-if="p.decision_inputs.admitted_scores?.mean != null">{{p.decision_inputs.admitted_scores.year}} 年{{p.decision_inputs.admitted_scores.population==='observed-sample' ? '名单样本' : '录取'}}均分 {{p.decision_inputs.admitted_scores.mean}}</small><small v-if="p.decision_inputs.retest_weights?.interview_weight != null">{{p.decision_inputs.retest_weights_year}} 年复试权重 {{percent(p.decision_inputs.retest_weights.interview_weight)}}</small></td>
+        <td v-if="p.decision_inputs?.threshold != null">{{p.decision_inputs.threshold_year}} 年{{p.decision_inputs.threshold_basis==='official-school-minimum' ? '校级最低要求' : '复试线'}} {{p.decision_inputs.threshold}}<small v-if="p.decision_inputs.threshold_basis==='official-school-minimum'">入围还需看院系名额和排名</small><small v-if="p.decision_inputs.admitted_scores?.mean != null">{{p.decision_inputs.admitted_scores.year}} 年{{p.decision_inputs.admitted_scores.population==='observed-sample' ? '名单样本' : '录取'}}均分 {{p.decision_inputs.admitted_scores.mean}}</small><small v-if="p.decision_inputs.retest_weights?.interview_weight != null">{{p.decision_inputs.retest_weights_year}} 年复试权重 {{percent(p.decision_inputs.retest_weights.interview_weight)}}</small></td>
         <td v-else>—</td>
       </tr></tbody>
     </table></div>
@@ -53,10 +54,10 @@ onUnmounted(()=>{revision++;if(timer)clearInterval(timer)})
       <summary>已整理的官方基础数据（{{school.decision_facts.length}} 条）</summary>
       <p class="muted">按原文年度、专业和学习方式分别记录；历史名额供参考。名单样本数量不作为招生名额。</p>
       <div class="index-table"><table>
-        <thead><tr><th>年度 / 专业</th><th>普通统考名额</th><th>复试线</th><th>成绩与复试</th></tr></thead>
+        <thead><tr><th>年度 / 专业</th><th>普通统考名额</th><th>分数要求</th><th>成绩与复试</th></tr></thead>
         <tbody><tr v-for="(f,i) in school.decision_facts" :key="i">
-          <td>{{f.year}} · {{f.major_name}}<small>{{f.department}} · {{f.major_code}} · {{f.mode}}</small><small v-if="f.route !== 'first-choice'">{{f.route === 'transfer' ? '调剂' : '推免'}}</small><small v-if="f.population==='observed-sample'">已取得名单样本</small></td>
-          <td>{{f.values.ordinary_quota ?? '—'}}</td><td>{{f.values.cutoff ?? '—'}}</td>
+          <td>{{f.year}} · {{f.major_name}}<small>{{f.department}} · {{f.major_code}} · {{f.mode}}</small><small v-if="f.campus">{{f.campus}}</small><small v-if="f.route !== 'first-choice'">{{f.route === 'transfer' ? '调剂' : '推免'}}</small><small v-if="f.population==='observed-sample'">已取得名单样本</small><details v-if="f.excerpt || f.source_url"><summary>范围与来源</summary><p>{{f.excerpt}}</p><a v-if="f.source_url" :href="f.source_url" target="_blank" rel="noopener noreferrer">查看原文 ↗</a></details></td>
+          <td>{{f.values.ordinary_quota ?? '—'}}</td><td>{{f.values.cutoff ?? '—'}}<small v-if="f.cutoff_kind==='school-minimum'">校级最低要求</small></td>
           <td><small v-if="f.values.admitted_mean != null">均分 {{f.values.admitted_mean}} · 最低 {{f.values.admitted_minimum ?? '—'}}</small><small v-if="f.values.interview_weight != null">复试 {{percent(f.values.interview_weight)}} · 初试 {{percent(f.values.initial_weight)}}</small><small v-if="f.values.machine_test_weight != null">机试占复试 {{percent(f.values.machine_test_weight)}}</small></td>
         </tr></tbody>
       </table></div>

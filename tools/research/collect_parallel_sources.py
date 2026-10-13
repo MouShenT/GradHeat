@@ -98,7 +98,19 @@ def collect(source,folder,social_workers=3,website_workers=4):
                         raise ValueError('Retained website changed; do not refetch')
             else:
                 mark(key,dict(state='running',host=host))
-                rows=retrieve([row],child)
+                try:
+                    rows=retrieve([row],child)
+                except Exception as error:
+                    # Retain other completed tasks even if one retriever fails
+                    # before it can write its normal per-source receipt.
+                    failed=dict(row,state='needs-review',error_type=type(error).__name__,failure_phase='retriever-before-receipt')
+                    if type(error) is ValueError and str(error)=='Real originals must stay in .research':
+                        failed.update(reason='private-output-boundary-check',requested=False,
+                            requested_output=str(child),resolved_output=str(child.resolve()),allowed_root=str((ROOT/'.research').resolve()))
+                    child.mkdir(parents=True,exist_ok=True)
+                    receipt.write_text(canonical([failed]),encoding='utf-8')
+                    mark(key,dict(state='needs-review',host=host,error_type=type(error).__name__))
+                    return [dict(type='website',task=row,result=failed)]
                 time.sleep(1)  # The retriever already waits one second; keep two per host.
             mark(key,dict(state=rows[0]['state'],host=host))
             return [dict(type='website',task=row,result=rows[0])]

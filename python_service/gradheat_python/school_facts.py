@@ -54,6 +54,7 @@ class SchoolFact(InputModel):
     population: str = Field(default='ordinary',pattern=r'^(ordinary|enrolled|retest_pool|observed-sample)$')
     special: bool = False
     campus: str | None = Field(default=None,max_length=80)
+    cutoff_kind: str = Field(default='department',pattern=r'^(department|school-minimum)$')
     observed_at: str
     source_url: str = Field(max_length=2048)
     source_artifact: str = Field(max_length=2048)

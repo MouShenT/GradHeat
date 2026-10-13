@@ -205,7 +205,7 @@ class DossierReader:
             con.rollback()
         return dict(unit=unit, available=True, tier=d['tier'], parent_unit=d.get('parent_unit'),entity_kind=d.get('entity_kind','admissions-unit'),counts=d['counts'], heat=d['heat'],
             programmes=[dict(p,decision_inputs=d.get('decision_inputs',{}).get(p['id'])) for p in d['programmes']], history=d['history'], dossier_version=d['dossier_version'],
-            decision_facts=[{key:f[key] for key in ('year','department','major_code','major_name','mode','route','population','values')} for f in d.get('decision_facts',[]) if not f.get('special')],
+            decision_facts=[{key:f[key] for key in ('year','department','major_code','major_name','mode','route','population','values','campus','cutoff_kind','excerpt','source_url') if key in f} for f in d.get('decision_facts',[]) if not f.get('special')],
             community_sources=[dict(title=s.get('title') or s['unit'],url=s['site_url'],observed_at=s['observed_at'],
                 pages=[dict(title=p['title'],url=p['url']) for p in s['pages']],scores=s['scores'],score_url=s['score_url'],
                 gaps=len(s['gaps']),source_type='community') for s in d.get('community_sources',[])],

@@ -85,10 +85,12 @@ def matching_facts(programme, dossier):
 def resolve_inputs(programme, dossier, history):
     facts = [f for f in matching_facts(programme, dossier) if programme['year']-3 <= f['year'] <= programme['year']]
     recent = [h for h in history if isinstance(h.get('year'), int) and programme['year']-3 <= h['year'] < programme['year']]
-    official = [f for f in facts if programme['year']-3 <= f['year'] < programme['year'] and f['values'].get('cutoff') is not None]
+    scored = [f for f in facts if programme['year']-3 <= f['year'] < programme['year'] and f['values'].get('cutoff') is not None]
+    official = [f for f in scored if f.get('cutoff_kind') != 'school-minimum']
+    school_minima = [f for f in scored if f.get('cutoff_kind') == 'school-minimum']
     community=[r for r in compatible_scores(programme,dossier) if programme['year']-3<=r['year']<programme['year']]
     thresholds = []
-    for year in sorted({h['year'] for h in recent} | {f['year'] for f in official} | {r['year'] for r in community}, reverse=True):
+    for year in sorted({h['year'] for h in recent} | {f['year'] for f in scored} | {r['year'] for r in community}, reverse=True):
         rows = [f for f in official if f['year'] == year]
         if rows:
             values = sorted(set(f['values']['cutoff'] for f in rows))
@@ -102,10 +104,16 @@ def resolve_inputs(programme, dossier, history):
                 sources=[r for r in community if r['year']==year]
                 values=sorted({r['cutoff'] for r in sources})
                 basis,confidence='community-school-table',.6
+            if not values:
+                values=sorted({f['values']['cutoff'] for f in school_minima if f['year']==year})
+                basis,confidence='official-school-minimum',.55
         if values and max(values)-min(values) <= 25:
             thresholds.append(dict(year=year, value=statistics.median(values), confidence=confidence,
                                    basis=basis, spread=max(values)-min(values)))
-    latest = thresholds[0] if thresholds else None
+    # A newer university minimum must not displace an actual departmental
+    # threshold from another aligned year. It is a fallback reference only.
+    actual_thresholds=[t for t in thresholds if t['basis']!='official-school-minimum']
+    latest = (actual_thresholds or thresholds)[0] if thresholds else None
     quota, quota_basis, extent = net_quota(programme)
     current = [f for f in facts if f['year'] == programme['year'] and f.get('population') == 'ordinary' and f['values'].get('ordinary_quota') is not None]
     current_values = {f['values']['ordinary_quota'] for f in current}
@@ -146,7 +154,7 @@ def resolve_inputs(programme, dossier, history):
         for subject in ('politics','english','mathematics','computer'):
             values={r['score_limits'][subject] for r in sources if subject in r['score_limits']}
             if len(values)==1:limits[subject]=values.pop();limits_year=latest['year']
-    for f in sorted(facts, key=lambda x: x['year']):
+    for f in sorted(facts, key=lambda x: (x['year'],x.get('cutoff_kind')!='school-minimum')):
         if f['values'].get('score_limits') and (limits_year is None or f['year']>=limits_year):
             if limits_year != f['year']: limits = {}
             limits.update(f['values']['score_limits']); limits_year = f['year']

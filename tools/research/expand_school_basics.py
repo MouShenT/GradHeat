@@ -1,7 +1,7 @@
 """Bounded official-source retrieval and immutable import of reviewed basics."""
 import argparse
 from datetime import datetime,timezone
-import hashlib,json,re,sys,time
+import hashlib,json,re,sys,time,threading
 from pathlib import Path
 from urllib.parse import urlsplit
 
@@ -13,6 +13,7 @@ sys.path.insert(0,str(ROOT/'python_service'));sys.path.insert(0,str(ROOT/'crawle
 from gradheat_python import bootstrap
 from gradheat_core.intelligence import canonical
 from run_daily_update import local_lock
+PDF_EXTRACTION_LOCK=threading.Lock()  # PyMuPDF does not support concurrent threads.
 
 
 def retrieve(rows,output):
@@ -45,7 +46,7 @@ def retrieve(rows,output):
                 parsed_content=dict(title=soup.title.get_text() if soup.title else '',text=content,tables=tables,links=links)
             elif suffix=='.pdf':
                 import pymupdf
-                with pymupdf.open(path) as pdf:
+                with PDF_EXTRACTION_LOCK,pymupdf.open(path) as pdf:
                     parsed_content=dict(text='\n'.join(p.get_text() for p in pdf),pages=len(pdf),tables=[])
             else:
                 parsed_content=dict(text='',tables=[],requires_visual_review=True)

@@ -26,6 +26,18 @@ def fact(**fields):
 
 
 class InputResolutionTests(unittest.TestCase):
+    def test_school_minimum_is_a_weaker_fallback_and_does_not_replace_real_thresholds(self):
+        p=programme();minimum=dict(fact(values={'cutoff':310}),cutoff_kind='school-minimum')
+        dossier=dict(programmes=[p],decision_facts=[minimum])
+        result=resolve_inputs(p,dossier,[])
+        self.assertEqual(result['threshold'],310)
+        self.assertEqual(result['threshold_basis'],'official-school-minimum')
+        self.assertEqual(result['threshold_confidence'],.55)
+        history=[dict(year=2025,cutoff=350)]
+        self.assertEqual(resolve_inputs(p,dossier,history)['threshold'],350)
+        dossier['decision_facts'].append(dict(fact(values={'cutoff':340}),source_url='https://example.org/department'))
+        self.assertEqual(resolve_inputs(p,dossier,[])['threshold'],340)
+
     def test_only_unambiguous_net_plans_are_capacities(self):
         self.assertEqual(net_quota(dict(plan_text='专业：40(不含推免)'))[0],40)
         for raw in ['专业：40(含推免)','40','专业：40(不含推免)；研究方向：10(不含推免)']:
