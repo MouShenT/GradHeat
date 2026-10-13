@@ -90,6 +90,9 @@ def collect(source,folder,social_workers=3,website_workers=4):
         host=urlsplit(row['url']).hostname
         with mutex:lock=host_locks.setdefault(host,threading.Lock())
         with lock:
+            frozen=state.get(key,{})
+            if frozen.get('state')=='needs-review' and frozen.get('result'):
+                return [dict(type='website',task=row,result=frozen['result'])]
             receipt=child/'manifest.json'
             if receipt.exists():
                 rows=json.loads(receipt.read_text(encoding='utf-8'))
@@ -107,9 +110,9 @@ def collect(source,folder,social_workers=3,website_workers=4):
                     if type(error) is ValueError and str(error)=='Real originals must stay in .research':
                         failed.update(reason='private-output-boundary-check',requested=False,
                             requested_output=str(child),resolved_output=str(child.resolve()),allowed_root=str((ROOT/'.research').resolve()))
-                    child.mkdir(parents=True,exist_ok=True)
-                    receipt.write_text(canonical([failed]),encoding='utf-8')
-                    mark(key,dict(state='needs-review',host=host,error_type=type(error).__name__))
+                    # A rejected output must not receive even a failure file.
+                    # Freeze the gap in the already validated batch directory.
+                    mark(key,dict(state='needs-review',host=host,error_type=type(error).__name__,result=failed))
                     return [dict(type='website',task=row,result=failed)]
                 time.sleep(1)  # The retriever already waits one second; keep two per host.
             mark(key,dict(state=rows[0]['state'],host=host))

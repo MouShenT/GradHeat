@@ -39,7 +39,7 @@ class ParallelTests(unittest.TestCase):
             def retrieve(rows,output):
                 row=rows[0];calls.append(row['url'])
                 if 'broken.example.edu' in row['url']:
-                    raise ValueError('Synthetic pre-request path validation failure')
+                    raise ValueError('Real originals must stay in .research')
                 output.mkdir(parents=True,exist_ok=True)
                 path=output/'original.html';path.write_bytes(b'synthetic source')
                 item=dict(row,state='retained',source_artifact=str(path),source_sha256=hashlib.sha256(path.read_bytes()).hexdigest())
@@ -52,6 +52,9 @@ class ParallelTests(unittest.TestCase):
                 resumed=parallel.collect(source,folder)
                 self.assertEqual(len(calls),2)
                 self.assertEqual({r['result']['state'] for r in resumed},{'retained','needs-review'})
+                failed=next(r for r in resumed if r['result']['state']=='needs-review')
+                self.assertFalse(Path(failed['result']['requested_output']).exists())
+                self.assertFalse(failed['result']['requested'])
 
     def test_websites_overlap_across_hosts_but_not_on_one_host_and_resume_reuses_bytes(self):
         with tempfile.TemporaryDirectory() as directory:
