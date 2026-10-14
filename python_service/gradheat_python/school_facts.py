@@ -11,6 +11,34 @@ from gradheat_core.intelligence import canonical, digest, date_value
 from gradheat.material_store import archive_serial
 
 
+class ReportedStatistics(InputModel):
+    """Published counts retain their pool; they are not ordinary-plan inputs."""
+    applicants: int | None = Field(default=None, ge=0, le=200000, strict=True)
+    national_line_count: int | None = Field(default=None, ge=0, le=200000, strict=True)
+    retest_qualified_count: int | None = Field(default=None, ge=0, le=200000, strict=True)
+    admitted_total: int | None = Field(default=None, ge=0, le=20000, strict=True)
+    recommended_exemption: int | None = Field(default=None, ge=0, le=20000, strict=True)
+    first_choice_admitted: int | None = Field(default=None, ge=0, le=20000, strict=True)
+    transfer_admitted: int | None = Field(default=None, ge=0, le=20000, strict=True)
+    admitted_minimum: float | None = Field(default=None, ge=100, le=500)
+    admitted_mean: float | None = Field(default=None, ge=100, le=500)
+    admitted_maximum: float | None = Field(default=None, ge=100, le=500)
+    includes_special: bool | None = None
+
+    @model_validator(mode='after')
+    def consistent(self):
+        values = self.model_dump(exclude={'includes_special'})
+        if all(value is None for value in values.values()):
+            raise ValueError('A published statistic requires an observed count or score')
+        parts = (self.recommended_exemption, self.first_choice_admitted, self.transfer_admitted)
+        if self.admitted_total is not None and sum(x for x in parts if x is not None) > self.admitted_total:
+            raise ValueError('Known admission components exceed the reported total')
+        low, mean, high = self.admitted_minimum, self.admitted_mean, self.admitted_maximum
+        if low is not None and high is not None and low > high or mean is not None and (low is not None and mean < low or high is not None and mean > high):
+            raise ValueError('Inconsistent reported score summary')
+        return self
+
+
 class AdmissionValues(InputModel):
     cutoff: float | None = Field(default=None, ge=200, le=500)
     ordinary_quota: int | None = Field(default=None, ge=0, le=5000)
@@ -26,6 +54,7 @@ class AdmissionValues(InputModel):
     cross_major_allowed: bool | None = None
     equivalent_education_allowed: bool | None = None
     previous_graduate_allowed: bool | None = None
+    reported_statistics: ReportedStatistics | None = None
 
     @model_validator(mode='after')
     def consistent(self):
@@ -51,7 +80,7 @@ class SchoolFact(InputModel):
     major_name: str = Field(min_length=1,max_length=160)
     mode: str = Field(default='全日制',pattern=r'^(全日制|非全日制)$')
     route: str = Field(default='first-choice',pattern=r'^(first-choice|transfer|recommended-exemption)$')
-    population: str = Field(default='ordinary',pattern=r'^(ordinary|enrolled|retest_pool|observed-sample)$')
+    population: str = Field(default='ordinary',pattern=r'^(ordinary|enrolled|retest_pool|observed-sample|reported-aggregate)$')
     special: bool = False
     campus: str | None = Field(default=None,max_length=80)
     cutoff_kind: str = Field(default='department',pattern=r'^(department|school-minimum)$')
@@ -72,6 +101,12 @@ class SchoolFact(InputModel):
             raise ValueError('An observed sample or roster is not an ordinary quota')
         if self.population not in {'ordinary','retest_pool'} and self.values.cutoff is not None:
             raise ValueError('A roster score is not a published interview cutoff')
+        if self.population == 'reported-aggregate':
+            other = self.values.model_dump(exclude_none=True, exclude={'reported_statistics','score_limits'})
+            if self.values.reported_statistics is None or other or self.values.score_limits:
+                raise ValueError('Reported aggregates must stay separate from ordinary decision values')
+        elif self.values.reported_statistics is not None:
+            raise ValueError('Reported statistics require an explicit aggregate population')
         if self.department_scope=='all' and self.department:
             raise ValueError('An all-department rule must not invent an issuing department')
         return self

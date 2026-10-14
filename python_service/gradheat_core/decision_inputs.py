@@ -64,6 +64,8 @@ def matching_facts(programme, dossier):
             continue
         if fact.get('route') != 'first-choice' or fact.get('special', False):
             continue
+        if fact.get('population') == 'reported-aggregate':
+            continue
         if fact.get('mode') and fact['mode'] != programme.get('mode'):
             continue
         if fact.get('campus') and fact['campus'] != programme.get('campus'):

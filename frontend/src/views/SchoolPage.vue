@@ -1,17 +1,24 @@
 <script setup lang="ts">
-import { onMounted, onUnmounted, ref, watch } from 'vue'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { api } from '../api'
 import { state } from '../state'
 import type { Programme, DataRow } from '../types'
+interface ReportedStatistics {
+  applicants?: number; national_line_count?: number; retest_qualified_count?: number; admitted_total?: number
+  recommended_exemption?: number; first_choice_admitted?: number; transfer_admitted?: number
+  admitted_minimum?: number; admitted_mean?: number; admitted_maximum?: number; includes_special?: boolean
+}
 interface Fact {
   year: number; department: string; major_code: string; major_name: string; mode: string; route: string; population: string
   campus?: string; cutoff_kind?: string; excerpt?: string; url?: string
-  values: { cutoff?: number; ordinary_quota?: number; admitted_mean?: number; admitted_minimum?: number; admitted_count?: number; initial_weight?: number; interview_weight?: number; machine_test_weight?: number }
+  values: { cutoff?: number; ordinary_quota?: number; admitted_mean?: number; admitted_minimum?: number; admitted_count?: number; initial_weight?: number; interview_weight?: number; machine_test_weight?: number; reported_statistics?: ReportedStatistics }
 }
 interface CommunitySource { title: string; url: string; score_url: string; pages: {title: string; url: string}[]; scores: {year: number; degree_type: string; major_name: string; exam_text: string; cutoff: number; plan: string; special: boolean; score_limits: Record<string,number>}[] }
 interface Dossier { available: boolean; unit: string; tier: string; programmes: Programme[]; history: DataRow[]; decision_facts?: Fact[]; community_sources?: CommunitySource[]; notes: string[]; heat: { heat_value: number | null }; counts: Record<string,number> }
 const names=ref<string[]>(state.data?.units.map(u=>u.name)||[]), unit=ref(state.unit || '北京邮电大学')
 const school=ref<Dossier|null>(null), error=ref('')
+const decisionFacts=computed(()=>school.value?.decision_facts?.filter(f=>f.population!=='reported-aggregate')||[])
+const statisticsFacts=computed(()=>school.value?.decision_facts?.filter(f=>f.values.reported_statistics)||[])
 let revision=0, timer: ReturnType<typeof setInterval> | undefined
 const percent=(value?: number) => value == null ? '—' : `${(value*100).toFixed(1)}%`
 async function refresh() {
@@ -50,15 +57,30 @@ onUnmounted(()=>{revision++;if(timer)clearInterval(timer)})
       </tr></tbody>
     </table></div>
     <p v-if="!school.programmes.length" class="muted">已建立院校档案，专业资料正在整理。</p>
-    <details v-if="school.decision_facts?.length" class="form-section" open>
-      <summary>已整理的官方基础数据（{{school.decision_facts.length}} 条）</summary>
+    <details v-if="decisionFacts.length" class="form-section" open>
+      <summary>已整理的官方基础数据（{{decisionFacts.length}} 条）</summary>
       <p class="muted">按原文年度、专业和学习方式分别记录；历史名额供参考。名单样本数量不作为招生名额。</p>
       <div class="index-table"><table>
         <thead><tr><th>年度 / 专业</th><th>普通统考名额</th><th>分数要求</th><th>成绩与复试</th></tr></thead>
-        <tbody><tr v-for="(f,i) in school.decision_facts" :key="i">
+        <tbody><tr v-for="(f,i) in decisionFacts" :key="i">
           <td>{{f.year}} · {{f.major_name}}<small>{{f.department}} · {{f.major_code}} · {{f.mode}}</small><small v-if="f.campus">{{f.campus}}</small><small v-if="f.route !== 'first-choice'">{{f.route === 'transfer' ? '调剂' : '推免'}}</small><small v-if="f.population==='observed-sample'">已取得名单样本</small><details v-if="f.excerpt || f.url"><summary>范围与来源</summary><p>{{f.excerpt}}</p><a v-if="f.url" :href="f.url" target="_blank" rel="noopener noreferrer">查看原文 ↗</a></details></td>
           <td>{{f.values.ordinary_quota ?? '—'}}</td><td>{{f.values.cutoff ?? '—'}}<small v-if="f.cutoff_kind==='school-minimum'">校级最低要求</small></td>
           <td><small v-if="f.values.admitted_mean != null">均分 {{f.values.admitted_mean}} · 最低 {{f.values.admitted_minimum ?? '—'}}</small><small v-if="f.values.interview_weight != null">复试 {{percent(f.values.interview_weight)}} · 初试 {{percent(f.values.initial_weight)}}</small><small v-if="f.values.machine_test_weight != null">机试占复试 {{percent(f.values.machine_test_weight)}}</small></td>
+        </tr></tbody>
+      </table></div>
+    </details>
+    <details v-if="statisticsFacts.length" class="form-section" open>
+      <summary>官方报考与录取统计（{{statisticsFacts.length}} 条）</summary>
+      <p class="muted">人数按原表范围保留。达到国家线或复试线的人数不代表实际参加复试；录取合计可能包含推免、调剂和专项。</p>
+      <div class="index-table"><table>
+        <thead><tr><th>年度 / 专业</th><th>一志愿报名</th><th>达国家线 / 达复试线</th><th>录取合计</th><th>推免 / 一志愿 / 调剂</th><th>录取分数</th></tr></thead>
+        <tbody><tr v-for="(f,i) in statisticsFacts" :key="i">
+          <td>{{f.year}} · {{f.major_name}}<small>{{f.department}} · {{f.major_code}} · {{f.mode}}</small><small v-if="f.values.reported_statistics?.includes_special">含专项统计</small><details><summary>范围与来源</summary><p>{{f.excerpt}}</p><a v-if="f.url" :href="f.url" target="_blank" rel="noopener noreferrer">查看原表 ↗</a></details></td>
+          <td>{{f.values.reported_statistics?.applicants ?? '—'}}</td>
+          <td>{{f.values.reported_statistics?.national_line_count ?? '—'}} / {{f.values.reported_statistics?.retest_qualified_count ?? '—'}}</td>
+          <td>{{f.values.reported_statistics?.admitted_total ?? '—'}}</td>
+          <td>{{f.values.reported_statistics?.recommended_exemption ?? '—'}} / {{f.values.reported_statistics?.first_choice_admitted ?? '—'}} / {{f.values.reported_statistics?.transfer_admitted ?? '—'}}</td>
+          <td>最低 {{f.values.reported_statistics?.admitted_minimum ?? '—'}}<small>均分 {{f.values.reported_statistics?.admitted_mean ?? '—'}} · 最高 {{f.values.reported_statistics?.admitted_maximum ?? '—'}}</small></td>
         </tr></tbody>
       </table></div>
     </details>

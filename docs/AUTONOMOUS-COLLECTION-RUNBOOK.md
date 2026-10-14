@@ -84,3 +84,15 @@ python tools/research/collect_parallel_sources.py --input .research/parallel-inp
 
 一个批次先持有现有全局采集锁，跨平台各自打开采集页面；同平台查询起点间隔至少 30 秒，同网站主机互斥并保留请求间隔。只在主线程写 MySQL。重复运行相同目录复用已冻结原件；校验失败或未完成的社交请求保持待核对，不转成新请求。真实验证限制照常暂停对应平台。批次输出目录输入不可改变，后续新输入使用新目录。
 
+## 多批次有界队列
+
+`tools/research/run_collection_queue.py` 接受 `{"schema_version":1,"batches":[并行输入,并行输入]}`。每批最多 60 项，按院校覆盖优先排序后冻结；实际院校名称、查询和回执仍只放忽略目录。四个平台各有一个串行任务通道，网站默认四个线程。队列完成一批并读回数据库后才进入下一批。
+
+```powershell
+python tools/research/run_collection_queue.py --input .research/priority-queue-input.json --output .research/priority-queue --hours 8
+```
+
+时间预算在批次之间检查，不杀死正在请求或入库的批次。关闭聊天不应终止独立启动的队列；Windows 隐藏进程的 PID 与当前批次记录在输出目录 `runtime.json`，原件和明细在各批目录。只有持有共享锁的子进程执行采集，不启动第二个批次。
+
+完成回执与冻结输入相同才跳过已有批次；中断时若仍有 `current_batch`，再次调用会保留 `needs-review`，先核对已请求材料和原批入库情况，不能自动重新采集。`budget-ended` 可从未执行的下一批继续，`queue-processed` 仅表示队列处理结束，验证码、拒绝、空内容和待核对事实仍是缺口。请求前路径异常记录实际校验根目录和目标路径，保持严格私有输出边界。
+

@@ -110,6 +110,8 @@ def collect(source,folder,social_workers=3,website_workers=4):
                     if type(error) is ValueError and str(error)=='Real originals must stay in .research':
                         failed.update(reason='private-output-boundary-check',requested=False,
                             requested_output=str(child),resolved_output=str(child.resolve()),allowed_root=str((ROOT/'.research').resolve()))
+                        if getattr(error,'boundary_context',None):
+                            failed['boundary_check']=error.boundary_context
                     # A rejected output must not receive even a failure file.
                     # Freeze the gap in the already validated batch directory.
                     mark(key,dict(state='needs-review',host=host,error_type=type(error).__name__,result=failed))

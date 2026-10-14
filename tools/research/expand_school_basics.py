@@ -18,7 +18,14 @@ PDF_EXTRACTION_LOCK=threading.Lock()  # PyMuPDF does not support concurrent thre
 
 def retrieve(rows,output):
     output=Path(output).resolve()
-    if not output.is_relative_to((ROOT/'.research').resolve()): raise ValueError('Real originals must stay in .research')
+    allowed_root=(ROOT/'.research').resolve()
+    if not output.is_relative_to(allowed_root):
+        error=ValueError('Real originals must stay in .research')
+        # Capture the paths used by the failed check, rather than resolving them
+        # again after another thread or external filesystem state has changed.
+        error.boundary_context=dict(checked_output=str(output),checked_root=str(allowed_root),
+            output_parts=list(output.parts),root_parts=list(allowed_root.parts),path_type=type(output).__name__)
+        raise error
     output.mkdir(parents=True,exist_ok=True)
     manifest=[]
     for row in rows:
