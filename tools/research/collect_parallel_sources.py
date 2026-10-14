@@ -42,7 +42,7 @@ def validate(source):
         public_url(row['url'])
 
 
-def collect(source,folder,social_workers=3,website_workers=4):
+def collect(source,folder,social_workers=3,website_workers=8):
     """Fetch independently; no worker thread writes MySQL."""
     validate(source)
     if not 1<=social_workers<=4 or not 1<=website_workers<=8:raise ValueError('Worker budget outside range')
@@ -147,7 +147,7 @@ def store(outcomes,folder):
 
 def main():
     p=argparse.ArgumentParser();p.add_argument('--input',type=Path,required=True);p.add_argument('--output',type=Path,required=True)
-    p.add_argument('--social-workers',type=int,default=3);p.add_argument('--website-workers',type=int,default=4);p.add_argument('--wait-for-lock',action='store_true')
+    p.add_argument('--social-workers',type=int,default=3);p.add_argument('--website-workers',type=int,default=8);p.add_argument('--wait-for-lock',action='store_true')
     args=p.parse_args();source=json.loads(args.input.read_text(encoding='utf-8-sig'));validate(source)
     with local_lock(wait=args.wait_for_lock),social.collector_lock(ROOT,'full-run'):
         marker=ROOT/'.research/social/full-run-active.json'

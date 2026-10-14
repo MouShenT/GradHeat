@@ -86,7 +86,7 @@ python tools/research/collect_parallel_sources.py --input .research/parallel-inp
 
 ## 多批次有界队列
 
-`tools/research/run_collection_queue.py` 接受 `{"schema_version":1,"batches":[并行输入,并行输入]}`。每批最多 60 项，按院校覆盖优先排序后冻结；实际院校名称、查询和回执仍只放忽略目录。四个平台各有一个串行任务通道，网站默认四个线程。队列完成一批并读回数据库后才进入下一批。
+`tools/research/run_collection_queue.py` 接受 `{"schema_version":1,"batches":[并行输入,并行输入]}`。每批最多 60 项，按院校覆盖优先排序后冻结；实际院校名称、查询和回执仍只放忽略目录。四个平台各有一个串行任务通道，网站默认八个线程，同主机仍串行。队列完成一批并读回数据库后才进入下一批。
 
 ```powershell
 python tools/research/run_collection_queue.py --input .research/priority-queue-input.json --output .research/priority-queue --hours 8
@@ -95,4 +95,16 @@ python tools/research/run_collection_queue.py --input .research/priority-queue-i
 时间预算在批次之间检查，不杀死正在请求或入库的批次。关闭聊天不应终止独立启动的队列；Windows 隐藏进程的 PID 与当前批次记录在输出目录 `runtime.json`，原件和明细在各批目录。只有持有共享锁的子进程执行采集，不启动第二个批次。
 
 完成回执与冻结输入相同才跳过已有批次；中断时若仍有 `current_batch`，再次调用会保留 `needs-review`，先核对已请求材料和原批入库情况，不能自动重新采集。`budget-ended` 可从未执行的下一批继续，`queue-processed` 仅表示队列处理结束，验证码、拒绝、空内容和待核对事实仍是缺口。请求前路径异常记录实际校验根目录和目标路径，保持严格私有输出边界。
+
+深采使用新的冻结输入与输出目录，添加 `--after-queue .research/原队列目录`。后续进程仅等候；必须确认原所有者退出、预算结束或队列已处理、输入和完成回执相符，才取得原共享采集锁开始执行。原队列或后续队列有不确定的已请求批次时均保留待核对，不改写旧输入。待查百度关键词不等同于未请求关键词，服务错误后的不确定请求不自动重发。
+
+## 持续只读监测
+
+```powershell
+python tools/research/watch_collection.py --queue .research/priority-queue --output .research/collection-monitor/priority --interval 15
+```
+
+监测器独立于采集运行，只读冻结输入、回执和进程生存状态，每15秒原子写入简短本地 `latest.json`。它不访问平台、不修改队列、不写数据库、不重启采集。讨论观测仅统计已提交的批次，搜索的取得与导入分别显示；空结果不是平台完整覆盖。原始关键词、正文、Cookie和路径不进入监测摘要。读取中断保留上次有效进度；15分钟没有新回执或持续无法读取会标记待核对。
+
+消息巡检每5分钟读取实际状态，只在入库或阶段实质完成、新故障重复确认或需要用户操作时通知。正常计数增长、相同故障、已报告版本和采集锁保护状态保持安静。终止状态仍按原回执判断资料缺口，监测不会把进程存在当成功。
 

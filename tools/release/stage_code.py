@@ -34,6 +34,7 @@ COLLECTORS = {
     'build_intelligence_queries', 'collect_search_indices', 'queue_intelligence_collection', 'refresh_school_intelligence',
     'expand_school_basics', 'evaluate_index_models', 'collect_community_sources', 'collect_parallel_sources', 'zhihu_browser_search',
     'run_collection_queue',
+    'watch_collection',
 }
 FILES.update('tools/research/' + name + '.py' for name in COLLECTORS)
 FILES.update('tools/research/' + name for name in ('firecrawl.ps1', 'searxng.ps1', 'agent-browser.ps1', 'requirements-search-index.txt'))

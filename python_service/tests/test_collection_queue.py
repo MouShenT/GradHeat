@@ -43,5 +43,30 @@ class QueueTests(unittest.TestCase):
                 self.assertEqual(result['state'],'needs-review');self.assertEqual(result['current_batch'],0)
                 self.assertIn('--wait-for-lock',run.call_args.args[0])
 
+    def test_followup_waits_for_owner_exit_and_verified_terminal_receipt(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root=Path(directory);folder=root/'.research/next';old=root/'.research/old'
+            states=[dict(receipt_readable=True,state='collecting',owner_alive=True),
+                dict(receipt_readable=True,state='budget-ended',owner_alive=False)]
+            with patch.object(queue,'ROOT',root),patch.object(queue,'inspect',side_effect=states),patch.object(queue.time,'sleep') as sleep,patch.object(queue,'_execute',return_value={'state':'collecting'}) as execute:
+                result=queue.execute_after(self.plan(),folder,old)
+                sleep.assert_called_once_with(15);execute.assert_called_once()
+                self.assertEqual(result['state'],'collecting')
+
+    def test_followup_preserves_uncertain_upstream_without_collecting(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root=Path(directory);folder=root/'.research/next'
+            with patch.object(queue,'ROOT',root),patch.object(queue,'inspect',return_value=dict(receipt_readable=True,state='collecting',owner_alive=False,fault='owner-exited')),patch.object(queue,'_execute') as execute:
+                self.assertEqual(queue.execute_after(self.plan(),folder,root/'.research/old')['reason'],'upstream-needs-review')
+                execute.assert_not_called()
+
+    def test_followup_does_not_clear_its_own_interrupted_batch(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root=Path(directory);folder=root/'.research/next';folder.mkdir(parents=True)
+            (folder/'runtime.json').write_text(json.dumps({'current_batch':0,'state':'collecting'}))
+            with patch.object(queue,'ROOT',root),patch.object(queue,'inspect') as inspect,patch.object(queue.subprocess,'run') as run:
+                self.assertEqual(queue.execute_after(self.plan(),folder,root/'.research/old')['reason'],'interrupted-batch-checkpoint')
+                inspect.assert_not_called();run.assert_not_called()
+
 
 if __name__=='__main__':unittest.main()

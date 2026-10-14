@@ -61,6 +61,10 @@ def retrieve(rows,output):
             item['extracted_path']=str(output/(sha+'-extracted.json'))
         except Exception as error:
             item.update(state='unavailable-at-check',error_type=type(error).__name__)
+            if isinstance(error,requests.HTTPError) and error.response is not None:
+                status=error.response.status_code
+                item['http_status']=status
+                item['next_action']='discover-current-link' if status in (404,410) else 'preserve-access-gap'
         manifest.append(item)
         (output/'manifest.json').write_text(canonical(manifest),encoding='utf-8')
         print(canonical(dict(unit=row['unit'],state=item['state'])),flush=True)
