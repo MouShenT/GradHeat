@@ -14,6 +14,9 @@ export function populationLabel(row: DataRow) {
   if (row.population === 'retest_pool') return '复试分组'
   return '人群待核'
 }
+export function listCountLabel(row: DataRow) {
+  return row.count_definition === 'observed-rows' ? '观测行 / 人数未核' : '提取人数'
+}
 export function pair(low: unknown, high: unknown) {
   const known = (value: unknown) => typeof value === 'number' && Number.isFinite(value) ? String(Number(value.toFixed(2))) : '—'
   return `${known(low)} / ${known(high)}`

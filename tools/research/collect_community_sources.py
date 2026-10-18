@@ -21,6 +21,43 @@ def public_url(url):
     return url
 
 
+def codebrick_admission_samples(raw,unit):
+    """Retain public list summaries without treating them as official cutoffs.
+
+    The site's ``retestLineTotal`` is a list minimum, and an enrolled-only
+    sample can report zero elimination. Neither is an admissions threshold or
+    proof of an ordinary, complete competition pool.
+    """
+    payload=json.loads(raw.decode('utf-8-sig'))
+    data=payload.get('data')
+    if payload.get('code')!=0 or not isinstance(data,dict) or data.get('schoolName')!=unit or not data.get('programName') or not isinstance(data.get('years'),list):
+        raise ValueError('Public admission summary identity or schema mismatch')
+    samples=[];seen=set()
+    for year in data['years']:
+        if not isinstance(year,dict) or type(year.get('year')) is not int or not 2000<=year['year']<=2100 or year['year'] in seen:
+            raise ValueError('Invalid or duplicate admission summary year')
+        seen.add(year['year'])
+        samples.append(dict(unit=unit,program_name=data['programName'],year=year['year'],
+            site_school_id=data.get('schoolId'),site_admit_type=data.get('admitType'),exam_text=year.get('exam408Type'),
+            mode=None,population=None,route=None,special=None,source_kind='community-database',
+            linked_source_url=year.get('sourceUrl'),site_claimed_source_level=year.get('sourceLevel'),
+            record_count=year.get('recordCount'),admitted_sample_count=year.get('enrolledCount'),
+            unadmitted_retest_sample_count=year.get('retestCount'),single_subject_fail_count=year.get('singleFailCount'),
+            retest_pool_sample_count=year.get('poolCount'),known_admitted_count=year.get('knownAdmitCount'),
+            distribution_population=year.get('distPopulation'),subject_statistics=year.get('subjects',[]),
+            observed_retest_list_minimum=year.get('retestLineTotal'),admitted_total_minimum=year.get('admitMinTotal'),
+            official_cutoff=None,elimination_rate=None,ordinary_quota=None,
+            site_reported_elimination_rate=year.get('retestEliminationRate'),
+            site_inferred_retest_weight=year.get('retestWeight'),warnings=year.get('warnings',[]),
+            verification_state='extracted-needs-scope-review'))
+    return samples
+
+
+def codebrick_stats_url(url):
+    parsed=urlsplit(url)
+    return parsed.hostname in ('codebrick.tech','www.codebrick.tech') and bool(re.fullmatch(r'/api/school/admit/\d+/stats',parsed.path))
+
+
 def collect(rows,output,max_pages=5):
     output=Path(output).resolve()
     if not output.is_relative_to((ROOT/'.research').resolve()) or not 1<=max_pages<=8 or not 1<=len(rows)<=30:
@@ -62,11 +99,15 @@ def collect(rows,output,max_pages=5):
             except Exception as exc:record['gaps'].append(dict(url=url,error_type=type(exc).__name__))
             time.sleep(1)
         try:
-            raw,item=fetch(row['score_url'],'.md');record['score_original']=item;record['scores']=score_rows(raw.decode('utf-8-sig'))
+            if codebrick_stats_url(row['score_url']):
+                raw,item=fetch(row['score_url'],'.json')
+                record['admission_samples']=codebrick_admission_samples(raw,row['unit']);record['admission_original']=item
+            else:
+                raw,item=fetch(row['score_url'],'.md');record['score_original']=item;record['scores']=score_rows(raw.decode('utf-8-sig'))
         except Exception as exc:record['gaps'].append(dict(url=row['score_url'],error_type=type(exc).__name__))
-        record['state']='retained' if record['pages'] or record['scores'] else 'unavailable-at-check'
+        record['state']='retained' if record['pages'] or record['scores'] or record.get('admission_samples') else 'unavailable-at-check'
         results.append(record);(output/'sources.json').write_text(canonical(results),encoding='utf-8')
-        print(canonical(dict(unit=row['unit'],pages=len(record['pages']),score_rows=len(record['scores']),gaps=len(record['gaps']))),flush=True)
+        print(canonical(dict(unit=row['unit'],pages=len(record['pages']),score_rows=len(record['scores']),admission_samples=len(record.get('admission_samples',[])),gaps=len(record['gaps']))),flush=True)
     return output/'sources.json'
 
 
@@ -75,7 +116,7 @@ def import_sources(con,root,rows,units):
     for row in rows:
         if row.get('unit') not in units or row.get('scope')!='institution':raise ValueError('Unknown school scope')
         public_url(row['site_url']);public_url(row['score_url'])
-        for item in row.get('pages',[])+([row['score_original']] if row.get('score_original') else []):
+        for item in row.get('pages',[])+[row[key] for key in ('score_original','admission_original') if row.get(key)]:
             path=Path(item['source_artifact']).resolve()
             if not path.is_relative_to(root.resolve()) or not path.is_file() or hashlib.sha256(path.read_bytes()).hexdigest()!=item['source_sha256']:
                 raise ValueError('Community original checksum mismatch')
@@ -83,6 +124,13 @@ def import_sources(con,root,rows,units):
         if row.get('score_original'):
             parsed=score_rows(Path(row['score_original']['source_artifact']).read_text(encoding='utf-8-sig'))
             if parsed!=row.get('scores'):raise ValueError('Score rows differ from retained original')
+        if row.get('admission_original'):
+            if not codebrick_stats_url(row['score_url']):raise ValueError('Unknown public admission summary endpoint')
+            parsed=codebrick_admission_samples(Path(row['admission_original']['source_artifact']).read_bytes(),row['unit'])
+            if parsed!=row.get('admission_samples') or row.get('scores'):
+                raise ValueError('Admission samples differ from retained original or were promoted to cutoffs')
+        elif row.get('admission_samples'):
+            raise ValueError('Admission samples require a retained original')
         validated.append(row)
     from gradheat.material_store import archive_serial
     stored=archive_serial(con,list(originals.items()),root,progress=lambda *a,**kw:None)
@@ -93,7 +141,7 @@ def import_sources(con,root,rows,units):
             cur.execute('SELECT canonical_bytes FROM school_web_source WHERE snapshot_sha=%s',(sha,))
             if bytes(cur.fetchone()[0])!=body:raise ValueError('Community record readback mismatch')
     con.commit()
-    return dict(sources=len(validated),pages=sum(len(r['pages']) for r in rows),score_rows=sum(len(r['scores']) for r in rows),originals=stored['files'])
+    return dict(sources=len(validated),pages=sum(len(r['pages']) for r in rows),score_rows=sum(len(r['scores']) for r in rows),admission_samples=sum(len(r.get('admission_samples',[])) for r in rows),originals=stored['files'])
 
 
 def main():

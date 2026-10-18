@@ -37,6 +37,44 @@ class DossierReaderTests(unittest.TestCase):
         cur.fetchone.return_value=(sha,body+b' ')
         with self.assertRaises(ValueError):reader.public('甲校','a'*64)
 
+    def test_admission_samples_publish_only_summary_scalars_and_keep_algorithm_missing(self):
+        p,d,body,sha,db,cur=self.fixture()
+        sample=dict(program_name='计算机技术',year=2026,exam_text='11408',record_count=3,
+            admitted_sample_count=2,unadmitted_retest_sample_count=1,observed_retest_list_minimum=310,
+            admitted_total_minimum=330,distribution_population='observed-records',verification_state='source-reported-sample')
+        private=dict(identifiers=['synthetic-identifier'],subjects=[{'name':'private raw subject'}],
+            source_artifact='D:/private/synthetic-original.json',raw={'private':'arbitrary original JSON'},
+            cutoff=310,ordinary_quota=2,elimination_rate=1/3)
+        d['community_sources']=[dict(unit='甲校',site_url='https://example.org/school',score_url='https://example.org/stats',
+            observed_at='2026-10-18',pages=[],scores=[],gaps=[],admission_samples=[sample|private],**private)]
+        body=canonical(d).encode();sha=hashlib.sha256(body).hexdigest();cur.fetchone.return_value=(sha,body)
+        result=DossierReader(db).public('甲校','a'*64);source=result['community_sources'][0]
+        self.assertEqual(source['admission_samples'],[sample])
+        self.assertEqual(source['scores'],[]);self.assertEqual(source['source_type'],'community')
+        public=canonical(source)
+        for forbidden in ('identifiers','synthetic-identifier','subjects','source_artifact','D:/private','arbitrary original JSON','ordinary_quota','elimination_rate','cutoff'):
+            self.assertNotIn(forbidden,public)
+        from gradheat_core.decision_inputs import resolve_inputs
+        inputs=resolve_inputs(p,d,[])
+        self.assertIsNone(inputs['threshold'])
+        self.assertEqual(inputs['ordinary_quota'],30)
+
+    def test_admission_sample_scalar_columns_cannot_carry_nested_raw_data(self):
+        p,d,body,sha,db,cur=self.fixture()
+        source=dict(unit='甲校',site_url='https://example.org/school',score_url='https://example.org/stats',
+            observed_at='2026-10-18',pages=[],scores=[],gaps=[])
+        cases=[({},[]),({'admission_samples':{'raw':'private'}},[]),
+            ({'admission_samples':[{'program_name':{'raw':'private'},'year':True,
+                'record_count':['private identifier'],'observed_retest_list_minimum':{'raw':'private'}},'raw JSON']},[]),
+            ({'admission_samples':[{'program_name':'计算机技术','record_count':0,'admitted_total_minimum':None,'ordinary_quota':999}]},
+                [{'program_name':'计算机技术','record_count':0,'admitted_total_minimum':None}])]
+        for extra,expected in cases:
+            with self.subTest(extra=extra):
+                d['community_sources']=[source|extra]
+                body=canonical(d).encode();sha=hashlib.sha256(body).hexdigest();cur.fetchone.return_value=(sha,body)
+                result=DossierReader(db).public('甲校','a'*64)
+                self.assertEqual(result['community_sources'][0]['admission_samples'],expected)
+
     def test_compact_inputs_preserve_algorithm_results_and_verify_source_identity(self):
         p,d,body,sha,db,cur=self.fixture()
         fields=('unit','admissions_version','observed_at','tier','heat','programmes','claims','decision_facts','community_sources')

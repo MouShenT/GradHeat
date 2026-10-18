@@ -3,6 +3,7 @@ from . import bootstrap
 from datetime import datetime, timezone
 import hashlib
 import json
+import math
 import threading
 import time
 
@@ -156,6 +157,26 @@ def refresh(con, root, payload):
         extracted_claims=sum(len(d['claims']) for d in dossiers.values()), admissions_version=version, observed_at=now)
 
 
+def public_admission_samples(source):
+    """Expose source sample summaries without candidates or original payloads."""
+    fields={key:(str,) for key in ('program_name','exam_text','distribution_population','verification_state')}
+    fields.update({key:(int,) for key in ('year','record_count','admitted_sample_count','unadmitted_retest_sample_count')})
+    fields.update({key:(int,float) for key in ('observed_retest_list_minimum','admitted_total_minimum')})
+    samples=source.get('admission_samples',[])
+    if not isinstance(samples,list):return []
+    result=[]
+    for row in samples:
+        if not isinstance(row,dict):continue
+        item={}
+        for key,types in fields.items():
+            if key not in row:continue
+            value=row[key]
+            if value is None or type(value) in types and (not isinstance(value,float) or math.isfinite(value)):
+                item[key]=value
+        if item:result.append(item)
+    return result
+
+
 class DossierReader:
     def __init__(self, database):
         self.database = database; self.cache = None; self.lock = threading.RLock()
@@ -209,7 +230,7 @@ class DossierReader:
                                 **({'url':f['source_url']} if f.get('source_url') else {})) for f in d.get('decision_facts',[]) if not f.get('special')],
             community_sources=[dict(title=s.get('title') or s['unit'],url=s['site_url'],observed_at=s['observed_at'],
                 pages=[dict(title=p['title'],url=p['url']) for p in s['pages']],scores=s['scores'],score_url=s['score_url'],
-                gaps=len(s['gaps']),source_type='community') for s in d.get('community_sources',[])],
+                admission_samples=public_admission_samples(s),gaps=len(s['gaps']),source_type='community') for s in d.get('community_sources',[])],
             notes=list(dict.fromkeys(c['value'] for c in d['claims'] if c['field']=='background_note'))[:8])
 
     def summaries(self, version):

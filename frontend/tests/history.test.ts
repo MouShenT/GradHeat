@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { filterHistorical, pair, populationLabel, type HistoryFilter } from '../src/history'
+import { filterHistorical, listCountLabel, pair, populationLabel, type HistoryFilter } from '../src/history'
 import type { DataRow } from '../src/types'
 const filter: HistoryFilter = { year: '2026', unit: '', group: '', search: '', scope: 'matched', units: [{ name: '示例 A', group: '研究所' }, { name: '示例 B', group: '985' }] }
 const rows: DataRow[] = [
@@ -15,4 +15,13 @@ describe('historical scopes remain separate', () => {
   it('shows school lines without treating them as subject evidence and filters the independent year', () => { const lines: DataRow[] = [{ id: 'line-1', unit: '示例 A', year: 2026, label: '院线 / 专项', cutoff: 0 }, { id: 'line-2', unit: '示例 A', year: 2025, label: '校线', cutoff: null }]; expect(filterHistorical(lines, filter, 'not-applicable').map(r => r.id)).toEqual(['line-1']); expect(filterHistorical(lines, { ...filter, year: 'all' }, 'not-applicable')).toHaveLength(2) })
   it('applies unit/category and scope searches without combining ordinary, special, first-choice, or transfer scopes', () => expect(filterHistorical(rows, { ...filter, group: '研究所', search: '专项' }, 'allow-unknown').map(r => r.id)).toEqual(['three']))
   it('does not use counts to derive a ratio or replace unknown numbers with zero', () => { expect(pair(null, 350)).toBe('— / 350'); expect(pair(0, null)).toBe('0 / —'); expect(populationLabel(rows[2]!)).toBe('人群待核'); expect(rows[0]?.interview_admit_ratio).toBeUndefined() })
+  it('labels masked-identifier observations as rows without claiming distinct candidates', () => {
+    const row: DataRow = { id: 'masked', unit: '示例 A', year: 2026, n: 12, count_definition: 'observed-rows', masked_identifier_rows: 12 }
+    expect(listCountLabel(row)).toBe('观测行 / 人数未核')
+    expect(listCountLabel({ ...row, masked_identifier_rows: 0 })).toBe('观测行 / 人数未核')
+  })
+  it('preserves the existing count label when observation metadata is absent or unknown', () => {
+    expect(listCountLabel(rows[0]!)).toBe('提取人数')
+    expect(listCountLabel({ ...rows[2]!, count_definition: 'unknown' })).toBe('提取人数')
+  })
 })

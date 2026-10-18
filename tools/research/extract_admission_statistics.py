@@ -23,6 +23,22 @@ def table_header(rows):
         if any(re.search(r'初试(?:总分|成绩|总成绩)',x) for x in c) and any('考生' in x or '姓名' in x for x in c):return c
     return None
 
+def deduplicate_records(records):
+    """Only a complete identifier can establish that two rows are one person."""
+    unique={}
+    for row in records:
+        if row['identifier_masked']:
+            # Repeated masks can denote different applicants, even at equal scores.
+            key=('row',row['locator'])
+        else:
+            key=('identifier',row['identifier_hash'])
+            previous=unique.get(key)
+            if previous and any(previous[field]!=row[field] for field in ('score','pool','special')):
+                raise ValueError('Conflicting roster rows require original-page review')
+        unique.setdefault(key,row)
+    return list(unique.values())
+
+
 def parse_table(rows, doc, tableloc):
     result=[]
     if not rows:return result
@@ -37,7 +53,7 @@ def parse_table(rows, doc, tableloc):
     si=scorecols[0];ii=idcols[0]
     groupcols=[i for i,h in enumerate(header) if re.search(r'专业|方向|学习方式|录取类型|录取类别|复试组|院系|学院|培养单位|招生单位',h) and not re.search(r'专业课|成绩|是否',h)]
     remarks=[i for i,h in enumerate(header) if '备注' in h or '专项' in h]
-    flagcols=[i for i,h in enumerate(header) if re.search(r'是否.*(?:录取|通过)|录取状态|录取结果',h)]
+    flagcols=[i for i,h in enumerate(header) if re.fullmatch(r'是否(?:被)?(?:拟|建议)?录取|(?:拟)?录取(?:状态|结果)',h)]
     state={}
     for rn,row in enumerate(rows[start:],start):
         if len(row)!=len(header):continue
@@ -45,7 +61,7 @@ def parse_table(rows, doc, tableloc):
         identifier=c[ii]
         if not re.fullmatch(r'[0-9*＊xX]{12,20}',identifier):continue
         if not re.fullmatch(r'[1-4]\d\d(?:\.0+)?|500',c[si]):continue
-        if flagcols and not any(re.search(r'拟录取|^是$|^录取$',c[i]) for i in flagcols):continue
+        if flagcols and not all(re.fullmatch(r'(?:是|(?:拟|建议|同意)?录取)(?:[（(][^）)]*[）)])?',c[i]) for i in flagcols):continue
         for i in groupcols:
             if c[i]:state[i]=c[i]
             elif i in state:c[i]=state[i]
@@ -53,7 +69,7 @@ def parse_table(rows, doc, tableloc):
         if groupcols and any('专业' in header[i] for i in groupcols) and not d.COMPUTING.search(pool) and not re.search(r'0812|0835|0839|0854|1405',pool):continue
         remarks_text='；'.join(c[i] for i in remarks if c[i])
         special=remarks_text if re.search(r'士兵|骨干|少干|专项|强军|单考|单独考试|少民|退役|加分|立功',remarks_text) else '强军计划（方向注明）' if '强军' in pool else '备注未标专项（仍需复核类别）'
-        result.append(dict(identifier_hash=hashlib.sha256(identifier.encode()).hexdigest(),score=float(c[si]),pool=pool,special=special,locator=f'{tableloc} row[{rn}]',score_header=header[si]))
+        result.append(dict(identifier_hash=hashlib.sha256(identifier.encode()).hexdigest(),identifier_masked=not identifier.isdigit(),score=float(c[si]),pool=pool,special=special,locator=f'{tableloc} row[{rn}]',score_header=header[si]))
     return result
 
 def run():
@@ -102,15 +118,18 @@ def run():
                 else:continue
             except Exception as ex:
                 counter['parse_errors']+=1;continue
-            dedup={r['identifier_hash']:r for r in records}
+            try:
+                dedup=deduplicate_records(records)
+            except ValueError:
+                counter['conflicting_rosters_deferred']+=1;continue
             if not dedup:continue
-            signature=hashlib.sha256(json.dumps(sorted((r['identifier_hash'],r['score']) for r in dedup.values())).encode()).hexdigest()
+            signature=hashlib.sha256(json.dumps(sorted((r['identifier_hash'],r['score'],r['pool'],r['special'],r['locator'] if r['identifier_masked'] else '') for r in dedup)).encode()).hexdigest()
             if (u['name'],doc['year'],signature) in table_seen:counter['equivalent_rosters']+=1;continue
             table_seen.add((u['name'],doc['year'],signature))
             # Match truncated continuation labels only within this source and
             # the same explicit professional/direction code, keeping modes.
             labels={}
-            for r in dedup.values():
+            for r in dedup:
                 bits=r['pool'].split('；');key=[]
                 for bit in bits:
                     if '：' not in bit:key.append(('原文范围',bit,''));continue
@@ -120,12 +139,13 @@ def run():
                 k=tuple(key)
                 if len(r['pool'])>len(labels.get(k,'')):labels[k]=r['pool']
                 r['_label_key']=k
-            for r in dedup.values():r['pool']=labels[r['_label_key']]
+            for r in dedup:r['pool']=labels[r['_label_key']]
             grouped=defaultdict(list)
-            for r in dedup.values():grouped[(r['pool'],r['special'])].append(r)
+            for r in dedup:grouped[(r['pool'],r['special'])].append(r)
             for (pool,special),rs in grouped.items():
                 scores=[r['score'] for r in rs]
-                output.append(dict(unit=u['name'],year=doc['year'],source_title=doc['title'],source_url=doc['url'],source_artifact=str(raw),source_sha256=digest,pool=pool,special=special,n=len(rs),minimum=min(scores),maximum=max(scores),mean=round(statistics.mean(scores),2),median=statistics.median(scores),score_header=rs[0]['score_header'],locators=[r['locator'] for r in rs],verification='明确初试分数字段逐行提取并在同文件去重；完整性/修订/专业范围仍待原页复核',source_document_candidate_count=len(dedup)))
+                masked=sum(r['identifier_masked'] for r in rs)
+                output.append(dict(unit=u['name'],year=doc['year'],source_title=doc['title'],source_url=doc['url'],source_artifact=str(raw),source_sha256=digest,pool=pool,special=special,n=len(rs),count_definition='observed-rows' if masked else 'distinct-visible-identifiers',masked_identifier_rows=masked,minimum=min(scores),maximum=max(scores),mean=round(statistics.mean(scores),2),median=statistics.median(scores),score_header=rs[0]['score_header'],locators=[r['locator'] for r in rs],verification='明确初试分数字段逐行提取；完整编号一致行去重，脱敏编号保留观测行而不认证人数；完整性/修订/专业范围仍待原页复核',source_document_candidate_count=len(dedup)))
         print(json.dumps({'unit':u['name'],'sources':len(selected),'groups_so_far':len(output)},ensure_ascii=False),flush=True)
     d.dump(d.WORK/'admission-statistics-candidates.json',output)
     print(json.dumps({'groups':len(output),'units':len(set(x['unit'] for x in output)),'counts':dict(counter)},ensure_ascii=False),flush=True)

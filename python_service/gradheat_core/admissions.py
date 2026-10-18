@@ -35,6 +35,23 @@ def identifier(value):
     return hashlib.sha256(json.dumps(value,ensure_ascii=False,sort_keys=True).encode()).hexdigest()[:24]
 
 
+def historical_scope(row):
+    # Dropping an explicit facet would turn a conflicting pool into an unknown
+    # wildcard when align_history matches the public projection.
+    scope={}
+    for field in ('major_code','degree_type','mode','route','campus','special_scope'):
+        value=clean_text(row.get(field))
+        if value is not None:scope[field]=value
+    return scope
+
+
+def count_metadata(row):
+    values={}
+    if 'count_definition' in row:values['count_definition']=clean_text(row['count_definition'])
+    if 'masked_identifier_rows' in row:values['masked_identifier_rows']=integer(row['masked_identifier_rows'])
+    return values
+
+
 def build_public(repo):
     groups={}
     for row in repo.programmes.values():groups.setdefault(source_identity(row),[]).append(row)
@@ -69,6 +86,7 @@ def build_public(repo):
                     interview_admit_ratio=interview_ratio(fields.get('复试人数'),fields.get('拟录取人数',fields.get('录取人数'))),
                     admitted_score_text=clean_text(fields.get('拟录取分数')),interview_score_text=clean_text(fields.get('进复试总分均分')),
                     status='待核',scope='该表行统计范围；普通/专项、一志愿/调剂及学习方式须分别确认')
+                item.update(historical_scope(row))
                 item['id']=identifier(item);history.append(item)
     lines=[]
     tablepath=repo.root/'.research/unit-dossiers-20261001/official-table-facts.json'
@@ -83,7 +101,7 @@ def build_public(repo):
     for row in repo.data.get('history_candidates',[]):
         lists.append(dict(id=identifier([row.get('unit'),row.get('year'),row.get('pool'),row.get('n'),row.get('minimum'),row.get('maximum')]),
             unit=row['unit'],year=row['year'],scope=clean_text(row.get('pool')),population=row.get('population'),exam_text=clean_text(row.get('exam_text')),n=row.get('n'),minimum=row.get('minimum'),maximum=row.get('maximum'),mean=row.get('mean'),median=row.get('median'),
-            status='名单分组待核',note='名单提取人数与初试分数；专业范围及完整性待核，不视为全专业录取统计'))
+            status='名单分组待核',note='名单提取人数与初试分数；专业范围及完整性待核，不视为全专业录取统计',**count_metadata(row)))
     external_path=repo.root/'.research/github-sources/candidates.json'
     extra=read_json(external_path) if external_path.is_file() else []
     comparisons_path=repo.root/'.research/github-sources/comparison.json'
@@ -102,11 +120,12 @@ def build_public(repo):
                 admit_count=integer(row.get('admit_text')),admit_text=clean_text(row.get('admit_text')),interview_admit_ratio=interview_ratio(row.get('retest_text'),row.get('admit_text')),
                 admitted_score_text=clean_text(row.get('admitted_score_text')),interview_score_text=None,
                 status='数值冲突待核' if row['id'] in conflicts else '待核',scope='院系与专业候选统计；人数及年度考试口径待核')
+            item.update(historical_scope(row))
             item['id']=identifier(item)
             if not any(x['id']==item['id'] for x in history):history.append(item)
         elif row['kind']=='distribution':
             lists.append(dict(id=identifier(row['id']),unit=row['unit'],year=row['year'],scope=clean_text(row.get('scope')),population=row.get('population'),exam_text=clean_text(row.get('exam_text')),n=row.get('n'),minimum=row.get('minimum'),maximum=row.get('maximum'),mean=row.get('mean'),median=row.get('median'),
-                status='录取分组待核' if row.get('population')=='enrolled' else '复试分组待核',note='录取者初试分数统计' if row.get('population')=='enrolled' else '该分布并非最终录取者分布'))
+                status='录取分组待核' if row.get('population')=='enrolled' else '复试分组待核',note='录取者初试分数统计' if row.get('population')=='enrolled' else '该分布并非最终录取者分布',**count_metadata(row)))
     units=[dict(name=u['name'],group=u['group']) for u in repo.units.values()]
     seen={u['name'] for u in units}
     for row in history+lists:

@@ -2,7 +2,9 @@
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { api } from '../api'
 import { state } from '../state'
-import type { Programme, DataRow } from '../types'
+import ProgrammeReference from '../components/ProgrammeReference.vue'
+import CommunityAdmissionSamples from '../components/CommunityAdmissionSamples.vue'
+import type { Programme, DataRow, CommunityAdmissionSample } from '../types'
 interface ReportedStatistics {
   applicants?: number; national_line_count?: number; retest_qualified_count?: number; admitted_total?: number
   recommended_exemption?: number; first_choice_admitted?: number; transfer_admitted?: number
@@ -13,7 +15,7 @@ interface Fact {
   campus?: string; cutoff_kind?: string; excerpt?: string; url?: string
   values: { cutoff?: number; ordinary_quota?: number; admitted_mean?: number; admitted_minimum?: number; admitted_count?: number; initial_weight?: number; interview_weight?: number; machine_test_weight?: number; reported_statistics?: ReportedStatistics }
 }
-interface CommunitySource { title: string; url: string; score_url: string; pages: {title: string; url: string}[]; scores: {year: number; degree_type: string; major_name: string; exam_text: string; cutoff: number; plan: string; special: boolean; score_limits: Record<string,number>}[] }
+interface CommunitySource { title: string; url: string; score_url: string; pages: {title: string; url: string}[]; scores: {year: number; degree_type: string; major_name: string; exam_text: string; cutoff: number; plan: string; special: boolean; score_limits: Record<string,number>}[]; admission_samples?: CommunityAdmissionSample[] }
 interface Dossier { available: boolean; unit: string; tier: string; programmes: Programme[]; history: DataRow[]; decision_facts?: Fact[]; community_sources?: CommunitySource[]; notes: string[]; heat: { heat_value: number | null }; counts: Record<string,number> }
 const names=ref<string[]>(state.data?.units.map(u=>u.name)||[]), unit=ref(state.unit || '北京邮电大学')
 const school=ref<Dossier|null>(null), error=ref('')
@@ -47,13 +49,12 @@ onUnmounted(()=>{revision++;if(timer)clearInterval(timer)})
     <h2>{{school.unit}} <span class="mini-pill">{{school.tier}}</span></h2>
     <p>热度值 <strong>{{school.heat.heat_value ?? '—'}}</strong></p>
     <div class="index-table"><table>
-      <thead><tr><th>院系 / 专业</th><th>考试科目</th><th>本年度普通统考名额</th><th>历史分数参考</th></tr></thead>
+      <thead><tr><th>院系 / 专业</th><th>考试科目</th><th>本年度普通统考名额</th><th>分数与复试参考</th></tr></thead>
       <tbody><tr v-for="p in school.programmes" :key="p.id">
         <td>{{p.department}}<small>{{p.major_name}} · {{p.major_code}} · {{p.mode}}</small><small v-if="p.scope">{{p.scope}}</small></td>
         <td>{{p.subjects.join(' / ')}}</td>
         <td><strong>{{p.decision_inputs?.ordinary_quota ?? '—'}}</strong><small>{{p.plan_text||'名额待补齐'}}</small><small v-if="p.decision_inputs?.ordinary_quota == null && p.decision_inputs?.capacity_proxy != null">容量参考：{{p.decision_inputs.capacity_year}} 年 {{p.decision_inputs.capacity_proxy}} 人</small></td>
-        <td v-if="p.decision_inputs?.threshold != null">{{p.decision_inputs.threshold_year}} 年{{p.decision_inputs.threshold_basis==='official-school-minimum' ? '校级最低要求' : '复试线'}} {{p.decision_inputs.threshold}}<small v-if="p.decision_inputs.threshold_basis==='official-school-minimum'">入围还需看院系名额和排名</small><small v-if="p.decision_inputs.admitted_scores?.mean != null">{{p.decision_inputs.admitted_scores.year}} 年{{p.decision_inputs.admitted_scores.population==='observed-sample' ? '名单样本' : '录取'}}均分 {{p.decision_inputs.admitted_scores.mean}}</small><small v-if="p.decision_inputs.retest_weights?.interview_weight != null">{{p.decision_inputs.retest_weights_year}} 年复试权重 {{percent(p.decision_inputs.retest_weights.interview_weight)}}</small></td>
-        <td v-else>—</td>
+        <td><ProgrammeReference :inputs="p.decision_inputs" /></td>
       </tr></tbody>
     </table></div>
     <p v-if="!school.programmes.length" class="muted">已建立院校档案，专业资料正在整理。</p>
@@ -95,6 +96,7 @@ onUnmounted(()=>{revision++;if(timer)clearInterval(timer)})
           </tbody></table></div>
           <p class="muted">普通计划与专项分别保留。<a :href="source.score_url" target="_blank" rel="noopener noreferrer">查看来源</a></p>
         </details>
+        <CommunityAdmissionSamples v-if="source.admission_samples?.length" :samples="source.admission_samples" />
       </div>
     </section>
     <details v-if="school.notes.length" class="form-section"><summary>背景与复试经验摘要</summary><p v-for="note in school.notes" :key="note">{{note}}</p><small class="muted">经验摘要供参考；具体报考条件以对应年度招生规则为准。</small></details>

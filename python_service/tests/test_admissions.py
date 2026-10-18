@@ -3,6 +3,7 @@ from pathlib import Path
 from types import SimpleNamespace
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
 from gradheat_core.admissions import build_public,interview_ratio,integer
+from gradheat_core.decision_inputs import resolve_inputs
 
 
 class AdmissionsTests(unittest.TestCase):
@@ -61,11 +62,58 @@ class AdmissionsTests(unittest.TestCase):
             (folder/'candidates.json').write_text(json.dumps([{'id':'conflict','kind':'history','unit':'样本大学','year':2026,'scope_status':'scope-conflict','cutoff_text':'264'}]),encoding='utf-8')
             self.assertEqual(build_public(self.repo(root))['history'],[])
 
+    def test_known_history_scope_survives_projection_and_cannot_supply_another_pool(self):
+        base=dict(id='history',kind='history',unit='样本大学',year=2026,scope_status='pending',
+            department='计算机学院',major_code='081200',major_name='计算机科学与技术',
+            mode='全日制',campus='甲校区',degree_type='学术学位',route='first-choice',
+            cutoff_text='320',admit_text='99',exam_text='11408')
+        conflicts=[dict(mode='非全日制'),dict(campus='乙校区'),dict(major_code='085404'),
+            dict(degree_type='专业学位'),dict(route='transfer'),dict(special_scope='退役大学生士兵')]
+        for source in ('secondary','github'):
+            for change in ({},*conflicts):
+                with self.subTest(source=source,change=change),tempfile.TemporaryDirectory() as tmp:
+                    root=Path(tmp);candidate=base|change
+                    if source=='github':
+                        folder=root/'.research/github-sources';folder.mkdir(parents=True)
+                        (folder/'candidates.json').write_text(json.dumps([candidate]),encoding='utf-8')
+                    else:
+                        folder=root/'.research/unit-dossiers-20261001';folder.mkdir(parents=True)
+                        row=dict(candidate,aligned=True,fields={'专业名称':candidate['major_name'],
+                            '初试科目':'11408','分数线':'320','拟录取人数':'99'})
+                        (folder/'dossiers.json').write_text(json.dumps([dict(unit='样本大学',secondary={'2026':[row]})]),encoding='utf-8')
+                    repo=self.repo(root)
+                    for row in repo.programmes.values():row.update(campus='甲校区',route='first-choice')
+                    payload=build_public(repo);p=payload['programmes'][0];h=payload['history'][0]
+                    linked=payload['historical_alignment'][p['id']]['matched']
+                    inputs=resolve_inputs(p,{},[h] if h['id'] in linked else [])
+                    self.assertEqual(inputs['threshold'],None if change else 320)
+                    self.assertEqual(inputs['capacity_proxy'],None if change else 99)
+                    for field in ('major_code','mode','campus','degree_type','route','special_scope'):
+                        if field in candidate:self.assertEqual(h.get(field),candidate[field])
+
     def test_retest_distribution_cannot_become_admitted_distribution(self):
         with tempfile.TemporaryDirectory() as tmp:
             root=Path(tmp);folder=root/'.research/github-sources';folder.mkdir(parents=True)
             (folder/'candidates.json').write_text(json.dumps([{'id':'distribution','kind':'distribution','unit':'样本大学','year':2025,'population':'retest_pool','exam_text':'22408','n':120,'minimum':310}]),encoding='utf-8')
             row=build_public(self.repo(root))['admission_groups'][0]
             self.assertEqual(row['status'],'复试分组待核');self.assertEqual(row['exam_text'],'22408')
+
+    def test_masked_roster_counts_keep_their_observation_definition(self):
+        item=dict(id='masked',kind='distribution',unit='样本大学',year=2026,pool='名单样本',
+            population='enrolled',exam_text='11408',n=2,minimum=320,maximum=330,
+            count_definition='observed-rows',masked_identifier_rows=2)
+        for source in ('roster','github'):
+            with self.subTest(source=source),tempfile.TemporaryDirectory() as tmp:
+                root=Path(tmp);repo=self.repo(root)
+                if source=='roster':repo.data['history_candidates']=[item]
+                else:
+                    folder=root/'.research/github-sources';folder.mkdir(parents=True)
+                    (folder/'candidates.json').write_text(json.dumps([item]),encoding='utf-8')
+                payload=build_public(repo);row=payload['admission_groups'][0]
+                self.assertEqual(row['n'],2)
+                self.assertEqual(row['count_definition'],'observed-rows')
+                self.assertEqual(row['masked_identifier_rows'],2)
+                self.assertEqual(payload['history'],[])
+                self.assertIsNone(resolve_inputs(payload['programmes'][0],{},[])['capacity_proxy'])
 
 if __name__=='__main__':unittest.main()

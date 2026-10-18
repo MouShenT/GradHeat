@@ -4,7 +4,7 @@ import { ChevronDown, Files, Info, ShieldCheck } from 'lucide-vue-next'
 import AdmissionsTable from '../components/AdmissionsTable.vue'
 import ScopeFilters from '../components/ScopeFilters.vue'
 import StatusChip from '../components/StatusChip.vue'
-import { filterHistorical, pair, populationLabel } from '../history'
+import { filterHistorical, listCountLabel, pair, populationLabel } from '../history'
 import { fmt, ratio, state } from '../state'
 import type { Column, DataRow } from '../types'
 import '../history.css'
@@ -34,7 +34,7 @@ const listColumns: Column[] = [
   { key: 'unit', label: '院校 / 年度', width: 18, value: r => `${r.unit} / ${r.year}` },
   { key: 'scope', label: '名单分组 / 人群', width: 26, value: r => `${r.scope || '范围待核'} / ${populationLabel(r)}` },
   { key: 'subjects', label: '当年科目', width: 11, value: r => r.exam_text },
-  { key: 'n', label: '提取人数', width: 9, value: r => r.n },
+  { key: 'n', label: '提取数量', width: 9, value: r => r.n },
   { key: 'range', label: '最低 / 最高', width: 12, value: r => pair(r.minimum, r.maximum) },
   { key: 'average', label: '均分 / 中位', width: 12, value: r => pair(r.mean, r.median) },
   { key: 'status', label: '状态', width: 12, value: r => r.status },
@@ -74,12 +74,12 @@ function fieldStatus(row: DataRow, field: string) {
   </details>
   <details class="history-detail" data-history-groups>
     <summary><span class="history-detail-icon"><Files :size="18" /></span><span><strong>名单分组的分数统计</strong><small>复试分组与拟录取分组分别展示</small></span><span class="history-detail-count">{{ lists.length }} 条</span><ChevronDown :size="15" /></summary>
-    <div class="history-detail-content"><div class="inline-note"><Info :size="14" />“提取人数”只表示当前名单分组，完整性待核，不是整个专业的录取人数；复试名单不作为录取分布，不用分组人数计算复录比。</div>
+    <div class="history-detail-content"><div class="inline-note"><Info :size="14" />数量按行标明人数或观测行；脱敏标识无法确认唯一考生时，人数保持待核。名单分组完整性待核，不是整个专业的录取人数；复试名单不作为录取分布，不用分组人数计算复录比。</div>
       <AdmissionsTable :rows="lists" :columns="listColumns" title="名单分组统计">
         <template #cell-unit="{ row }"><strong class="cell-primary">{{ row.unit }}</strong><span class="year-pill">{{ row.year ?? '年度待核' }}</span></template>
         <template #cell-scope="{ row }"><span class="cell-primary">{{ row.scope || '范围待核' }}</span><span class="population-label" :class="{ interview: row.population === 'retest_pool' }">{{ populationLabel(row) }}</span></template>
         <template #cell-subjects="{ row }"><span class="subject-codes">{{ row.exam_text || '科目待核' }}</span></template>
-        <template #cell-n="{ row }"><span>{{ fmt(row.n) }}</span><StatusChip v-if="fieldStatus(row, 'n')" :text="fieldStatus(row, 'n')" /></template>
+        <template #cell-n="{ row }"><span>{{ fmt(row.n) }}</span><span class="cell-secondary">{{ listCountLabel(row) }}</span><span v-if="typeof row.masked_identifier_rows === 'number' && row.masked_identifier_rows > 0" class="cell-secondary">脱敏标识 {{ row.masked_identifier_rows }} 行</span><StatusChip v-if="fieldStatus(row, 'n')" :text="fieldStatus(row, 'n')" /></template>
         <template #cell-status="{ row }"><StatusChip :text="row.status" /><span class="cell-secondary">{{ row.population === 'retest_pool' ? '非最终录取统计' : '分组完整性待核' }}</span></template>
       </AdmissionsTable>
     </div>
