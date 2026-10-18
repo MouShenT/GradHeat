@@ -16,6 +16,8 @@ import uuid
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / 'crawler'))
 from social_evidence import candidate_segments, clean_url, document, encode, now, public_response, snapshot
+sys.path.insert(0,str(ROOT/'tools/application'))
+from runtime_json import write_runtime
 
 
 def platform_health():
@@ -43,9 +45,7 @@ def set_platform_health(platform, state, reason=None, restriction_scope=None):
         if state == 'accessible' and platform == 'zhihu' and 'platform-detail' in restrictions:
             record.update(state='partial-access', reason='platform-access-refused', restriction_scope='platform-detail')
     if restriction_scope:record['restriction_scope']=restriction_scope
-    temp = path.with_name(path.stem + '-' + uuid.uuid4().hex + '.tmp')
-    temp.write_text(encode(record), encoding='utf-8')
-    temp.replace(path)
+    write_runtime(path,record)
 
 
 def platform_paused(platform, health):
@@ -225,9 +225,7 @@ def ingest(manifest, folder):
 
 def persist_result(result):
     pointer = ROOT / '.research/social/latest.json'
-    temp = pointer.with_name(pointer.stem + '-' + uuid.uuid4().hex + '.tmp')
-    temp.write_text(encode(result), encoding='utf-8')
-    temp.replace(pointer)
+    write_runtime(pointer,result)
 
 
 def sampling_summary(manifest):
@@ -256,9 +254,7 @@ def finish_ingestion(manifest, folder, result, vm=True):
         result['database_state'] = 'local-only'
     # Keep the original manifest frozen: the storage state is separate.
     status = folder / 'storage-status.json'
-    temporary = status.with_name(status.stem + '-' + uuid.uuid4().hex + '.tmp')
-    temporary.write_text(encode(result), encoding='utf-8')
-    temporary.replace(status)
+    write_runtime(status,result)
     persist_result(result)
     return result
 

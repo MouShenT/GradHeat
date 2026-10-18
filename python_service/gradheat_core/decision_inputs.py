@@ -55,7 +55,8 @@ def net_quota(programme):
 
 def matching_facts(programme, dossier):
     """Prefer exact scopes; a renamed department is allowed only in a unique pool."""
-    peers = [p for p in dossier.get('programmes', []) if p.get('major_code') == programme.get('major_code')
+    peers = [p for p in dossier.get('programmes', []) if p.get('unit') == programme['unit']
+             and p.get('year') == programme.get('year') and p.get('major_code') == programme.get('major_code')
              and p.get('mode') == programme.get('mode')]
     unique_pool = len({department(p.get('department')) for p in peers}) <= 1
     matched = []
@@ -68,18 +69,25 @@ def matching_facts(programme, dossier):
             continue
         if fact.get('mode') and fact['mode'] != programme.get('mode'):
             continue
-        if fact.get('campus') and fact['campus'] != programme.get('campus'):
+        if fact.get('campus') and text(fact['campus']) != text(programme.get('campus')):
             continue
         left, right = department(programme.get('department')), department(fact.get('department'))
         if right and right != left and not unique_pool and fact.get('department_scope')!='all':
             continue
         if not right and not unique_pool and fact.get('department_scope')!='all':
             continue
+        campus_peers = [p for p in peers if not right or department(p.get('department')) == right] or peers
+        campuses = {text(p.get('campus')) for p in campus_peers if text(p.get('campus'))}
+        if not fact.get('campus') and len(campuses) > 1:
+            continue
         matched.append(fact)
-    # Changed versions of one issuing page are one chain; the newest is active.
+    # Each located statement on a page has its own revision chain. A later
+    # quota/weights row must not erase the same page's separate cutoff row.
     latest = {}
     for fact in sorted(matched, key=lambda f: f.get('observed_at', '')):
-        key = (fact.get('source_url'), fact.get('year'), fact.get('major_code'), fact.get('department'), fact.get('mode'), fact.get('population'))
+        key = (fact.get('source_url'), fact.get('locator'), fact.get('year'), fact.get('major_code'),
+               fact.get('department'), fact.get('mode'), fact.get('population'),
+               text(fact.get('campus')), fact.get('cutoff_kind', 'department'))
         latest[key] = fact
     return list(latest.values())
 

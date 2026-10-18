@@ -63,6 +63,43 @@ class InputResolutionTests(unittest.TestCase):
         self.assertEqual(resolve_inputs(p,dict(programmes=[p],decision_facts=[f]),[])['threshold'],340)
         self.assertIsNone(resolve_inputs(p,dict(programmes=[p,dict(p,id='b',department='教育学院')],decision_facts=[f]),[])['threshold'])
 
+    def test_separate_page_rows_survive_and_only_their_own_revision_is_replaced(self):
+        p=programme()
+        rows=[dict(fact(values={'cutoff':330}),locator='table 1 row 1',observed_at='2026-03-19'),
+              dict(fact(values={'cutoff':340}),locator='table 1 row 1'),
+              dict(fact(values={'initial_weight':.6,'interview_weight':.4}),locator='section 2'),
+              dict(fact(values={'ordinary_quota':40}),locator='table 1 row 2',year=2027)]
+        result=resolve_inputs(p,dict(programmes=[p],decision_facts=rows),[])
+        self.assertEqual(result['threshold'],340)
+        self.assertEqual(result['ordinary_quota'],40)
+        self.assertEqual(result['retest_weights'],{'initial_weight':.6,'interview_weight':.4})
+        self.assertEqual(result['retest_weights_year'],2026)
+
+    def test_school_and_department_lines_on_one_page_stay_distinct(self):
+        p=programme()
+        rows=[fact(values={'cutoff':340}),dict(fact(values={'cutoff':310}),cutoff_kind='school-minimum')]
+        result=resolve_inputs(p,dict(programmes=[p],decision_facts=rows),[])
+        self.assertEqual(result['threshold'],340)
+        self.assertEqual(result['threshold_basis'],'official-department')
+
+    def test_unspecified_campus_cannot_select_among_distinct_campus_pools(self):
+        p=programme(campus='甲校区');other=dict(p,id='p2',campus='乙校区')
+        unscoped=fact(values={'cutoff':340,'ordinary_quota':40})
+        dossier=dict(programmes=[p,other],decision_facts=[unscoped])
+        for target in (p,other):
+            result=resolve_inputs(target,dossier,[])
+            self.assertIsNone(result['threshold'])
+            self.assertIsNone(result['capacity_proxy'])
+        dossier['decision_facts'].append(dict(unscoped,campus='甲校区'))
+        self.assertEqual(resolve_inputs(p,dossier,[])['threshold'],340)
+        self.assertIsNone(resolve_inputs(other,dossier,[])['threshold'])
+        # An older catalogue entry is not a second current competition pool.
+        dossier=dict(programmes=[p,dict(other,year=2026)],decision_facts=[unscoped])
+        self.assertEqual(resolve_inputs(p,dossier,[])['capacity_proxy'],40)
+        # A distinct department can already identify which campus pool applies.
+        dossier=dict(programmes=[p,dict(other,department='教育学院')],decision_facts=[unscoped])
+        self.assertEqual(resolve_inputs(p,dossier,[])['threshold'],340)
+
     def test_zero_quota_conflicting_quota_and_sample_counts(self):
         p=programme(ordinary_quota=30)
         f=dict(fact(values={'ordinary_quota':0}),year=2027)

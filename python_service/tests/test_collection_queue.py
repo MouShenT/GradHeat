@@ -11,6 +11,34 @@ import run_collection_queue as queue
 
 
 class QueueTests(unittest.TestCase):
+    def test_stop_and_missing_browser_leave_unrequested_batch_intact(self):
+        for reason in ('stop-requested','browser-unavailable'):
+            with self.subTest(reason=reason),tempfile.TemporaryDirectory() as directory:
+                root=Path(directory);folder=root/'.research/queue';stop=root/'stop'
+                (root/'contracts').mkdir();(root/'contracts/social-collection.json').write_text('{"cdp_port":9222}')
+                if reason=='stop-requested':stop.touch()
+                with patch.object(queue,'ROOT',root),patch('mediacrawler_worker.cdp_health',return_value=False),patch.object(queue.subprocess,'run') as run:
+                    result=queue.execute(self.plan(),folder,stop_file=stop,require_cdp=True)
+                    self.assertEqual(result['reason'],reason);self.assertIsNone(result['current_batch']);run.assert_not_called()
+                    self.assertFalse(list(folder.glob('batch-*')))
+
+    def test_reconcile_requires_dead_owner_and_verified_recovery(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root=Path(directory);folder=root/'.research/queue';folder.mkdir(parents=True)
+            plan=self.plan();batch=plan['batches'][0];output=folder/f'batch-0000-{queue.digest(batch)[:12]}';output.mkdir()
+            (folder/'queue.json').write_text(queue.canonical(plan),encoding='utf-8')
+            (folder/'runtime.json').write_text(json.dumps(dict(pid=99,current_batch=0,state='needs-review')))
+            (output/'input.json').write_text(json.dumps(batch),encoding='utf-8')
+            report=dict(source_sha=queue.digest(batch),recovered_without_requests=True,receipts=[dict(database_state='committed')],
+                retrieval_states={queue.digest(batch['social'][0]):dict(state='needs-review',recovery='no-refetch')})
+            (output/'report.json').write_text(json.dumps(report))
+            with patch.object(queue,'ROOT',root),patch.object(queue,'process_alive',return_value=True):
+                with self.assertRaises(RuntimeError):queue.reconcile_recovered(folder)
+            with patch.object(queue,'ROOT',root),patch.object(queue,'process_alive',return_value=False):
+                result=queue.reconcile_recovered(folder)
+                self.assertEqual(result['processed_batches'],1);self.assertIsNone(result['current_batch'])
+            self.assertTrue((folder/'checkpoint-before-recovery-0000.json').exists())
+
     def plan(self):
         return {'schema_version':1,'batches':[{'schema_version':1,'as_of':'2026-10-15',
             'social':[{'platform':'bili','query':'甲校 计算机考研','limit':20}], 'websites':[]}]}

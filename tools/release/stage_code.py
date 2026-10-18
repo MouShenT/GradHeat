@@ -17,7 +17,7 @@ FILES = {
     'crawler/run_archive_materials.py', 'crawler/run_import_research.py', 'crawler/run_migrate_application.py',
     'crawler/run_publish_admissions.py', 'crawler/run_research_status.py', 'crawler/run_school_list.py',
     'crawler/run_find_portal.py', 'crawler/test_portal.py', 'crawler/scripts/list_schools.py', 'crawler/scripts/verify_refs.py',
-    'tools/build-application.ps1', 'tools/start-application.ps1', 'tools/start-frontend.ps1',
+    'tools/build-application.ps1', 'tools/start-application.ps1', 'tools/start-frontend.ps1', 'tools/start-collector.ps1',
     'tools/run-collection.ps1', 'tools/打开前端.cmd', 'tools/打开采集登录.cmd',
     'docs/ARCHITECTURE.md', 'docs/STATUS.md', 'docs/TASKS.md', 'docs/ALGORITHMS.md',
     'docs/APPLICATION-RUNBOOK.md', 'docs/AUTONOMOUS-COLLECTION-RUNBOOK.md',

@@ -21,8 +21,23 @@ export interface CollectionProgress {
   batch_id: string; plan_sha: string; planned_jobs: number; processed_jobs: number; complete_jobs: number; incomplete_jobs: number
   unattempted_jobs: number; states: Record<string, number>; downloads: { incomplete: boolean; handoff: boolean }
 }
+export function collectionTaskActive(status?: string): boolean {
+  return ['pending', 'queued', 'running', 'started'].includes(status?.toLowerCase() || '')
+}
+export function collectionProgressHeading(status?: string, refreshFailed = false): string {
+  if (refreshFailed) return '进度暂未更新，显示上次回执'
+  switch (status?.toLowerCase()) {
+    case 'pending': case 'queued': return '等待采集器接收'
+    case 'running': case 'started': return '任务回执：处理中'
+    case 'succeeded': case 'completed': return '本轮采集已结束'
+    case 'failed': return '本轮任务未完成'
+    case 'cancelled': return '本轮任务已取消'
+    case 'paused_human': return '等待人工处理'
+    default: return '采集进度待核对'
+  }
+}
 export const collectionStateNames: Record<string, string> = {
-  running: '采集中', committed: '材料已收集并入库', 'partial-committed': '已存部分材料', 'empty-sample': '没有取得内容',
+  running: '回执处理中', committed: '完整入库任务', 'partial-committed': '部分入库任务', retained: '已取得，待入库', 'empty-sample': '没有取得内容',
   'needs-human': '登录或验证受限', 'not-requested-platform-blocked': '平台受限，未请求', 'needs-ingest': '材料待入库', failed: '请求或格式异常',
   'budget-paused': '预算到期，待续跑', 'missing-entry-url': '没有找到官网入口', 'invalid-content': '内容格式异常',
 }

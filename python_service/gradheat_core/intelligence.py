@@ -4,6 +4,7 @@ Indices are relative decision aids, not empirically calibrated probabilities.
 Missing evidence never becomes an observed zero or an invented score threshold.
 """
 from datetime import datetime, timezone
+from functools import lru_cache
 import hashlib
 import json
 import math
@@ -79,6 +80,16 @@ def unique_units(names):
     return list(by_key.values())
 
 
+@lru_cache(maxsize=2048)
+def _mention_pattern(token):
+    # A full school registry plus aliases exceeds re's shared pattern cache.
+    # Cache only names, never post bodies or attribution results.
+    pattern = re.escape(unit_key(token)).replace(r'\ ', r'\s*')
+    if token.isascii():
+        pattern = r'(?<![A-Za-z])' + pattern + r'(?![A-Za-z])'
+    return re.compile(pattern, re.I)
+
+
 def identify(doc, units):
     """Full names win over substring aliases (e.g. 西电 vs 成电); ambiguous 华师 omitted.
 
@@ -97,10 +108,7 @@ def identify(doc, units):
         for name in sorted(names, key=len, reverse=True):
             tokens = ['中国科学院大学 '+name, '国科大 '+name] if name in UCAS_COLLEGES else [name] + ALIASES.get(name, [])
             for token in tokens:
-                pattern = re.escape(unit_key(token)).replace(r'\ ',r'\s*')
-                if token.isascii():
-                    pattern = r'(?<![A-Za-z])' + pattern + r'(?![A-Za-z])'
-                for match in re.finditer(pattern, value, re.I):
+                for match in _mention_pattern(token).finditer(value):
                     if any(a <= match.start() and match.end() <= b for a, b in covered):
                         continue
                     hits.append(name); covered.append(match.span())

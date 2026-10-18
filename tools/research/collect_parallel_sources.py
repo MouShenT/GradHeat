@@ -19,6 +19,8 @@ from run_daily_update import local_lock
 import collect_social_sources as social
 from expand_school_basics import retrieve
 from collect_community_sources import public_url
+sys.path.insert(0,str(ROOT/'tools/application'))
+from runtime_json import write_runtime
 
 
 def validate(source):
@@ -59,7 +61,7 @@ def collect(source,folder,social_workers=3,website_workers=8):
     def mark(key,value):
         with mutex:
             state[key]=value
-            temporary=state_path.with_suffix('.tmp');temporary.write_text(canonical(state),encoding='utf-8');temporary.replace(state_path)
+            write_runtime(state_path,state)
     def social_lane(platform,rows):
         results=[];last_query=0
         for row in rows:
@@ -124,7 +126,49 @@ def collect(source,folder,social_workers=3,website_workers=8):
         futures += [websites.submit(website,row) for row in source.get('websites',[])]
         for future in as_completed(futures):
             outcomes.extend(future.result())
-    (folder/'collected.json').write_text(canonical(outcomes),encoding='utf-8')
+    write_runtime(folder/'collected.json',outcomes)
+    return outcomes
+
+
+def recover(source, folder):
+    """Recover only frozen originals. Unknown requests become gaps, never retries."""
+    validate(source)
+    folder=Path(folder).resolve()
+    if not folder.is_relative_to((ROOT/'.research').resolve()):raise ValueError('Private output required')
+    if json.loads((folder/'input.json').read_text(encoding='utf-8'))!=source:
+        raise ValueError('Frozen batch input differs')
+    states=json.loads((folder/'retrieval.json').read_text(encoding='utf-8'))
+    outcomes=[]
+    for kind, rows in (('social',source.get('social',[])),('website',source.get('websites',[]))):
+        for row in rows:
+            key=digest(row)
+            if kind=='social':
+                run_id='auto-'+digest(source)[:12]+'-'+key[:24]+'-a1'
+                child=social.ROOT/'.research/social/runs'/run_id
+                if (child/'manifest.json').is_file():
+                    _,manifest=social.load_frozen_manifest(child)
+                    result=dict(folder=str(child),run_id=run_id,**social.sampling_summary(manifest))
+                else:
+                    states[key]=dict(states.get(key,{}),state='needs-review',reason='request-receipt-uncertain',recovery='no-refetch')
+                    continue
+            else:
+                child=folder/'websites'/key[:16]
+                if not (child/'manifest.json').is_file():
+                    states[key]=dict(states.get(key,{}),state='needs-review',reason='request-receipt-uncertain',recovery='no-refetch')
+                    continue
+                records=json.loads((child/'manifest.json').read_text(encoding='utf-8'))
+                if len(records)!=1:raise ValueError('Website receipt identity mismatch')
+                result=records[0]
+                if result.get('unit')!=row['unit'] or result.get('url',result.get('source_url'))!=row['url']:
+                    raise ValueError('Website receipt identity mismatch')
+                if result['state']=='retained':
+                    raw=Path(result['source_artifact']).resolve()
+                    if not raw.is_relative_to(child.resolve()) or hashlib.sha256(raw.read_bytes()).hexdigest()!=result['source_sha256']:
+                        raise ValueError('Retained website changed; do not refetch')
+            outcomes.append(dict(type=kind,task=row,result=result))
+            states[key]=dict(states.get(key,{}),state='retained' if kind=='social' else result['state'],recovery='verified-frozen-original')
+    write_runtime(folder/'retrieval.json',states)
+    write_runtime(folder/'collected.json',outcomes)
     return outcomes
 
 
@@ -141,24 +185,28 @@ def store(outcomes,folder):
             child=Path(row['source_artifact']).parent
             result=dict(state='fetched',scope_complete=True,documents=[dict(unit=item['task']['unit'],url=row['source_url'],raw_path=row['source_artifact'],sha256=row['source_sha256'],text_path=row['extracted_path'],state='fetched')])
             receipts.append(dict(type='website',**ingest(child,dict(type='official',unit=item['task']['unit'],id=digest(item['task'])),result)))
-        (Path(folder)/'storage.json').write_text(canonical(receipts),encoding='utf-8')
+        write_runtime(Path(folder)/'storage.json',receipts)
+    if any(r.get('database_state',r.get('state')) not in ('committed','stored') for r in receipts):
+        raise RuntimeError('Storage incomplete; preserve batch checkpoint')
     return receipts
 
 
 def main():
     p=argparse.ArgumentParser();p.add_argument('--input',type=Path,required=True);p.add_argument('--output',type=Path,required=True)
     p.add_argument('--social-workers',type=int,default=3);p.add_argument('--website-workers',type=int,default=8);p.add_argument('--wait-for-lock',action='store_true')
+    p.add_argument('--recover-only',action='store_true',help='Verify and ingest frozen originals without sending source requests')
     args=p.parse_args();source=json.loads(args.input.read_text(encoding='utf-8-sig'));validate(source)
     with local_lock(wait=args.wait_for_lock),social.collector_lock(ROOT,'full-run'):
         marker=ROOT/'.research/social/full-run-active.json'
-        marker.write_text(canonical(dict(pid=os.getpid(),folder=str(args.output),source='parallel-collection')),encoding='utf-8')
+        write_runtime(marker,dict(pid=os.getpid(),folder=str(args.output),source='parallel-collection'))
         try:
-            outcomes=collect(source,args.output,args.social_workers,args.website_workers)
+            outcomes=recover(source,args.output) if args.recover_only else collect(source,args.output,args.social_workers,args.website_workers)
             receipts=store(outcomes,args.output)
             from refresh_school_intelligence import rebuild
             states=json.loads((args.output/'retrieval.json').read_text(encoding='utf-8'))
             report=dict(receipts=receipts,retrieval_states=states,dossiers=rebuild(),social_workers=args.social_workers,website_workers=args.website_workers)
-            (args.output/'report.json').write_text(canonical(report),encoding='utf-8');print(canonical(report),flush=True)
+            report.update(source_sha=digest(source),recovered_without_requests=args.recover_only)
+            write_runtime(args.output/'report.json',report);print(canonical(report),flush=True)
         finally:
             marker.unlink(missing_ok=True)
 

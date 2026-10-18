@@ -10,6 +10,33 @@ from unittest.mock import Mock
 
 
 class ParallelTests(unittest.TestCase):
+    def test_recovery_retains_unknown_request_and_never_fetches(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root=Path(directory);folder=root/'.research/batch';folder.mkdir(parents=True)
+            task=dict(unit='甲校',url='https://a.example.edu/1')
+            source=dict(schema_version=1,as_of='2026-10-17',websites=[task])
+            (folder/'input.json').write_text(json.dumps(source),encoding='utf-8')
+            (folder/'retrieval.json').write_text(json.dumps({parallel.digest(task):dict(state='running')}))
+            with patch.object(parallel,'ROOT',root),patch.object(parallel,'retrieve') as fetch,patch.object(parallel.social,'run') as social:
+                self.assertEqual(parallel.recover(source,folder),[])
+                fetch.assert_not_called();social.assert_not_called()
+            state=json.loads((folder/'retrieval.json').read_text())[parallel.digest(task)]
+            self.assertEqual(state['state'],'needs-review');self.assertEqual(state['recovery'],'no-refetch')
+
+    def test_recovery_checks_frozen_website_bytes_before_storage(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root=Path(directory);folder=root/'.research/batch';folder.mkdir(parents=True)
+            task=dict(unit='甲校',url='https://a.example.edu/1')
+            source=dict(schema_version=1,as_of='2026-10-17',websites=[task]);key=parallel.digest(task)
+            (folder/'input.json').write_text(json.dumps(source),encoding='utf-8')
+            (folder/'retrieval.json').write_text(json.dumps({key:dict(state='running')}))
+            child=folder/'websites'/key[:16];child.mkdir(parents=True);raw=child/'original.html';raw.write_bytes(b'synthetic')
+            (child/'manifest.json').write_text(json.dumps([dict(task,state='retained',source_artifact=str(raw),source_sha256=hashlib.sha256(raw.read_bytes()).hexdigest())]))
+            with patch.object(parallel,'ROOT',root),patch.object(parallel,'retrieve') as fetch:
+                self.assertEqual(len(parallel.recover(source,folder)),1);fetch.assert_not_called()
+                raw.write_bytes(b'changed')
+                with self.assertRaises(ValueError):parallel.recover(source,folder)
+
     def test_pdf_extraction_is_serial_while_requests_overlap(self):
         with tempfile.TemporaryDirectory() as directory:
             root=Path(directory);barrier=threading.Barrier(2);mutex=threading.Lock();active=0;peak=0
